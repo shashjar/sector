@@ -1,26 +1,123 @@
 @import "tailwindcss";
 
+/*
+ * Sector commits to a single visual world: a night cockpit.
+ *
+ * This is a choice, not an omission. Every EFB in the cockpit runs dark chrome
+ * regardless of ambient light, because the map underneath changes brightness
+ * dramatically — the default chart ground is near-black, a sectional is
+ * paper-white, satellite imagery is bright. Chrome that followed the OS theme
+ * would fight the basemap instead of framing it.
+ *
+ * Legibility across basemaps is the scrim layer's job in the renderer, not the
+ * chrome palette's.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Ground — near-black with a blue bias, the night-flight neutral */
+  --bg: #070a0e;
+  --surface: #0f151c;
+  --surface-2: #161e26;
+  --border: #232e38;
+  --border-strong: #34424e;
+
+  /* Foreground */
+  --text: #c8d3dd;
+  --text-dim: #7b8a96;
+  --text-faint: #55636e;
+
+  /* Instrument-panel amber. The one bold color; everything else stays quiet. */
+  --accent: #f0a202;
+  --accent-bright: #ffbb33;
+  --accent-wash: #1d1708;
+
+  /*
+   * Flight categories. Not decorative — these are the FAA's own ceiling and
+   * visibility bands, and pilots read the color before they read the number.
+   * Semantic, and deliberately separate from the accent.
+   */
+  --vfr: #3fb950;
+  --mvfr: #58a6ff;
+  --ifr: #f85149;
+  --lifr: #d2a8ff;
+  --unknown: #55636e;
+
+  /* Scope surface */
+  --scope-void: #05080b;
+  --scope-ring: #1b2530;
+  --scope-runway: #8b9aa8;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-text: var(--text);
+  --color-text-dim: var(--text-dim);
+  --color-text-faint: var(--text-faint);
+
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
+  --color-accent-wash: var(--accent-wash);
+
+  --color-vfr: var(--vfr);
+  --color-mvfr: var(--mvfr);
+  --color-ifr: var(--ifr);
+  --color-lifr: var(--lifr);
+  --color-unknown: var(--unknown);
+
+  --color-scope-void: var(--scope-void);
+  --color-scope-ring: var(--scope-ring);
+  --color-scope-runway: var(--scope-runway);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+/*
+ * Digits line up in columns throughout this app — altitudes, groundspeeds,
+ * frequencies, headings, squawks. Tabular figures aren't a nicety here.
+ */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Uppercase micro-labels: the vernacular of instrument panels and flight strips */
+.label {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.66rem;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
