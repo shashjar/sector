@@ -11,6 +11,11 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // scripts/*.mts run directly under Node, which strips types but does not
+    // resolve extensionless imports — so they must write `../lib/airspace.ts`.
+    // Safe to allow here because nothing in this project is emitted by tsc:
+    // Next owns the build and this config is noEmit.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
