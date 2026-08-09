@@ -90,24 +90,25 @@ export function Scope() {
       {/* Controls float over the map; the wrapper must not eat map gestures. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3">
         <div className="pointer-events-auto">
-          {coverageGap && basemap.tiles ? (
+          {coverageGap ? (
             <div className="max-w-xs rounded border border-border-strong bg-surface/95 px-3 py-2 backdrop-blur-sm">
               <p className="text-[0.8rem] text-text">
                 No {basemap.label.toLowerCase()} coverage here
               </p>
               <p className="mt-0.5 text-[0.75rem] leading-snug text-text-dim">
                 {basemapId === "sectional"
-                  ? "FAA charts cover the United States only."
-                  : "This area has no tiles at the current zoom."}{" "}
-                Showing chart ground underneath.
+                  ? "FAA charts cover the United States only. Satellite works worldwide."
+                  : "This area has no tiles at the current zoom."}
               </p>
-              <button
-                type="button"
-                onClick={() => selectBasemap("chart")}
-                className="mt-1.5 font-mono text-[0.68rem] uppercase tracking-[0.08em] text-accent hover:text-accent-bright"
-              >
-                Switch to chart
-              </button>
+              {basemapId !== "satellite" ? (
+                <button
+                  type="button"
+                  onClick={() => selectBasemap("satellite")}
+                  className="mt-1.5 font-mono text-[0.68rem] uppercase tracking-[0.08em] text-accent hover:text-accent-bright"
+                >
+                  Switch to satellite
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>

@@ -3,21 +3,20 @@ import type { StyleSpecification } from "maplibre-gl";
 /**
  * Ground layers the scope can draw on.
  *
- * All four raster sources happen to share the ArcGIS fused-map-cache
+ * All three raster sources happen to share the ArcGIS fused-map-cache
  * convention — `/tile/{z}/{y}/{x}` in Web Mercator at 256px, note the row
  * before the column, reversed from the usual XYZ ordering. That is why
- * supporting four basemaps is four entries in a table rather than four
+ * supporting three basemaps is three entries in a table rather than three
  * integrations: none needs a key, a signup, or a provider SDK.
  */
-export type BasemapId = "chart" | "sectional" | "satellite" | "street";
+export type BasemapId = "sectional" | "satellite" | "street";
 
 export interface Basemap {
   id: BasemapId;
   label: string;
   /** Shown in the switcher; says what the mode is *for*, not what it is. */
   hint: string;
-  /** Absent for `chart`, which draws on bare ground. */
-  tiles?: string;
+  tiles: string;
   minZoom?: number;
   maxZoom?: number;
   attribution?: string;
@@ -31,29 +30,20 @@ export interface Basemap {
    */
   dim: { opacity: number; saturation: number };
   /**
-   * True when the basemap already draws airports and runways itself. Sector
-   * suppresses its own airport symbology in those modes rather than
-   * double-drawing on top of the chart's.
+   * True when the basemap already draws runway geometry itself.
+   *
+   * Scoped to runways deliberately. A sectional draws runways, so ours would
+   * double-image on top of them — but it knows nothing about current weather or
+   * which fields have a live ATC feed, so the airport dots stay in every mode.
+   * They are not a duplicate symbol; they are state the chart cannot carry.
    */
-  drawsOwnAirports: boolean;
+  drawsOwnRunways: boolean;
 }
 
 const ARCGIS_ONLINE = "https://services.arcgisonline.com/ArcGIS/rest/services";
 const FAA_CHARTS = "https://tiles.arcgis.com/tiles/ssFJjBXIUyZDrSYZ/arcgis/rest/services";
 
 export const BASEMAPS: Record<BasemapId, Basemap> = {
-  chart: {
-    id: "chart",
-    label: "Chart",
-    hint: "Bare ground. Maximum contrast for traffic and weather.",
-    // Deliberately sourceless. Chart mode is the void plus Sector's own
-    // symbology, which is what makes it a scope rather than a map — and until
-    // the airport, runway, and traffic layers exist there is genuinely nothing
-    // to draw on it.
-    dim: { opacity: 1, saturation: 0 },
-    drawsOwnAirports: false,
-  },
-
   sectional: {
     id: "sectional",
     label: "Sectional",
@@ -66,7 +56,7 @@ export const BASEMAPS: Record<BasemapId, Basemap> = {
     maxZoom: 12,
     attribution: "VFR charts &copy; FAA Aeronautical Information Services",
     dim: { opacity: 0.72, saturation: -0.15 },
-    drawsOwnAirports: true,
+    drawsOwnRunways: true,
   },
 
   satellite: {
@@ -78,7 +68,7 @@ export const BASEMAPS: Record<BasemapId, Basemap> = {
     maxZoom: 19,
     attribution: "Imagery &copy; Esri",
     dim: { opacity: 0.8, saturation: -0.1 },
-    drawsOwnAirports: false,
+    drawsOwnRunways: false,
   },
   street: {
     id: "street",
@@ -89,28 +79,19 @@ export const BASEMAPS: Record<BasemapId, Basemap> = {
     maxZoom: 19,
     attribution: "Street map &copy; Esri",
     dim: { opacity: 0.55, saturation: -0.4 },
-    drawsOwnAirports: false,
+    drawsOwnRunways: false,
   },
 };
 
-/** Ordered from Sector's own symbology outward to general-purpose reference. */
-export const BASEMAP_ORDER: BasemapId[] = [
-  "chart",
-  "sectional",
-  "satellite",
-  "street",
-];
+/** Ordered from the aviation reference outward to general-purpose maps. */
+export const BASEMAP_ORDER: BasemapId[] = ["sectional", "satellite", "street"];
 
 /**
- * Sectional is the opening view.
+ * Sectional is the opening view, and the one the product is built around.
  *
- * Chart mode has the better long-term claim — no network, no coverage limit,
- * most contrast for overlaid data — but it is bare ground until the airport,
- * runway, and traffic layers exist, and a black rectangle is a poor first
- * impression of an aviation tool. Sectional says what this is in one glance.
- *
- * Worth revisiting once traffic renders: the choice is between the mode that
- * is immediately legible and the one that is the product's signature.
+ * It is the map pilots actually navigate by, and the only mode carrying
+ * airspace — the context that makes a controller's instructions legible.
+ * Satellite and street are alternates for orientation, not peers.
  */
 export const DEFAULT_BASEMAP: BasemapId = "sectional";
 
@@ -126,8 +107,8 @@ export function isBasemapId(value: string): value is BasemapId {
  *
  * The ground layer is always painted, even under an opaque raster: it is what
  * the dimmed basemap composites against, and it is what shows through when
- * tiles are missing. That single decision is why an out-of-coverage sectional
- * degrades to the chart view on its own rather than to grey squares.
+ * tiles are missing. That single decision is why panning a sectional past the
+ * US border degrades to bare ground on its own rather than to grey squares.
  */
 export function buildStyle(basemap: Basemap): StyleSpecification {
   const style: StyleSpecification = {
@@ -142,25 +123,23 @@ export function buildStyle(basemap: Basemap): StyleSpecification {
     ],
   };
 
-  if (basemap.tiles) {
-    style.sources.basemap = {
-      type: "raster",
-      tiles: [basemap.tiles],
-      tileSize: 256,
-      minzoom: basemap.minZoom ?? 0,
-      maxzoom: basemap.maxZoom ?? 19,
-      attribution: basemap.attribution,
-    };
-    style.layers.push({
-      id: "basemap",
-      type: "raster",
-      source: "basemap",
-      paint: {
-        "raster-opacity": basemap.dim.opacity,
-        "raster-saturation": basemap.dim.saturation,
-      },
-    });
-  }
+  style.sources.basemap = {
+    type: "raster",
+    tiles: [basemap.tiles],
+    tileSize: 256,
+    minzoom: basemap.minZoom ?? 0,
+    maxzoom: basemap.maxZoom ?? 19,
+    attribution: basemap.attribution,
+  };
+  style.layers.push({
+    id: "basemap",
+    type: "raster",
+    source: "basemap",
+    paint: {
+      "raster-opacity": basemap.dim.opacity,
+      "raster-saturation": basemap.dim.saturation,
+    },
+  });
 
   return style;
 }
