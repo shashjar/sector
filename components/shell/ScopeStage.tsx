@@ -1,18 +1,17 @@
+import { Scope } from "@/components/scope/Scope";
+
 /**
- * Primary region. Hosts the chart-style scope: basemap, runway geometry, range
- * rings, live traffic, and weather dots. Currently the bare ground plane — the
- * canvas renderer lands with the scope commit.
+ * Primary region. Hosts the scope: basemap, runway geometry, range rings, live
+ * traffic, and weather dots.
+ *
+ * The stage stays a server component and owns only the frame; everything that
+ * needs WebGL and a viewport lives inside {@link Scope}, which is a client
+ * boundary because MapLibre reaches for `window` on import.
  */
 export function ScopeStage() {
   return (
     <main className="relative min-w-0 flex-1 bg-scope-void">
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
-        <p className="text-[0.95rem] text-text-dim">No aircraft in view</p>
-        <p className="max-w-xs text-[0.82rem] leading-relaxed text-text-faint">
-          Pan or zoom the scope to an area with traffic. Coverage comes from
-          community ADS-B receivers, so remote areas may be thin.
-        </p>
-      </div>
+      <Scope />
     </main>
   );
 }
