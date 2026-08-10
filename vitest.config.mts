@@ -7,6 +7,6 @@ export default defineConfig({
     // What is under test is pure computation: runway geometry, unit
     // conversion. No DOM, so no jsdom.
     environment: "node",
-    include: ["lib/**/*.test.ts"],
+    include: ["{lib,components}/**/*.test.ts"],
   },
 });

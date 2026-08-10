@@ -1,13 +1,29 @@
 "use client";
 
+/*
+ * maplibre-gl is pinned to an exact 5.x in package.json. Do not float it to 6.
+ *
+ * react-map-gl 8.1.2 — the current release — declares `maplibre-gl >=4.0.0`,
+ * which is wrong: against 6.x its <Source> and <Layer> children silently never
+ * create anything and event props such as onLoad never fire. Nothing throws and
+ * nothing logs. The basemap still renders, because that comes from the style
+ * object passed at construction, so the map looks like it is working while
+ * every layer of our own is missing.
+ *
+ * Diagnosed by watching the network: with 6.x the app never requested
+ * airports.geojson at all. On 5.24.0 the sources, layers, and glyph ranges all
+ * load. Revisit when react-map-gl declares real support for 6.
+ */
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import type { ErrorEvent } from "maplibre-gl";
 import { useCallback, useMemo, useRef, useState } from "react";
 import Map, {
   AttributionControl,
+  Layer,
   NavigationControl,
   ScaleControl,
+  Source,
 } from "react-map-gl/maplibre";
 
 import {
@@ -19,6 +35,14 @@ import {
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from "@/lib/constants";
 
 import { BasemapSwitcher } from "./BasemapSwitcher";
+import {
+  AIRPORT_SOURCE,
+  airportLabelLayer,
+  airportRingHaloLayer,
+  airportRingLayer,
+  RUNWAY_SOURCE,
+  runwayLayer,
+} from "./layers";
 
 /**
  * Number of failed basemap tiles before we tell the user the ground is
@@ -60,9 +84,18 @@ export function Scope() {
     // MapLibre copies the failing source onto the event at runtime but does
     // not declare it, so narrow rather than assume every error is a tile.
     const { sourceId } = event as ErrorEvent & { sourceId?: string };
-    if (sourceId && sourceId !== "basemap") return;
-    tileFailures.current += 1;
-    if (tileFailures.current >= COVERAGE_GAP_THRESHOLD) setCoverageGap(true);
+
+    if (sourceId === "basemap") {
+      tileFailures.current += 1;
+      if (tileFailures.current >= COVERAGE_GAP_THRESHOLD) setCoverageGap(true);
+      return;
+    }
+
+    // Anything that is not a basemap tile is a genuine fault — unparseable
+    // GeoJSON, a rejected layer, a missing glyph range. Attaching any error
+    // listener stops MapLibre logging these itself, so swallowing them here
+    // would make the map fail silently.
+    console.error("[scope]", sourceId ? `source "${sourceId}":` : "", event.error ?? event);
   }, []);
 
   return (
@@ -79,9 +112,23 @@ export function Scope() {
         attributionControl={false}
         onError={handleError}
         onMoveStart={resetCoverage}
-        reuseMaps
         style={{ width: "100%", height: "100%" }}
       >
+        {/*
+          Runways are suppressed on the sectional, which already draws them —
+          ours would double-image on top. Airport rings stay in every mode:
+          they are not a duplicate symbol, they carry state the chart cannot.
+        */}
+        <Source id={RUNWAY_SOURCE} type="geojson" data="/data/runways.geojson">
+          <Layer {...runwayLayer(!basemap.drawsOwnRunways)} />
+        </Source>
+
+        <Source id={AIRPORT_SOURCE} type="geojson" data="/data/airports.geojson">
+          <Layer {...airportRingHaloLayer} />
+          <Layer {...airportRingLayer} />
+          <Layer {...airportLabelLayer} />
+        </Source>
+
         <NavigationControl position="bottom-right" showCompass={false} />
         <ScaleControl position="bottom-left" unit="nautical" />
         <AttributionControl position="bottom-right" compact />

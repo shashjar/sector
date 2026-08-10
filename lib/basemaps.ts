@@ -113,6 +113,9 @@ export function isBasemapId(value: string): value is BasemapId {
 export function buildStyle(basemap: Basemap): StyleSpecification {
   const style: StyleSpecification = {
     version: 8,
+    // Self-hosted; MapLibre renders no text at all without this. See
+    // public/fonts/README.md for why these files exist and what is in them.
+    glyphs: "/fonts/{fontstack}/{range}.pbf",
     sources: {},
     layers: [
       {
