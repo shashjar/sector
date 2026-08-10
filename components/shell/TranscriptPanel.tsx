@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { SegmenterState, Transmission } from "@/components/scope/useSegmenter";
-import type { TranscriptEntry } from "@/components/scope/useTranscripts";
+import type {
+  GroundedTransmission,
+  TranscriptEntry,
+} from "@/components/scope/useTranscripts";
 import type { TunerState } from "@/components/scope/useTuner";
 import { useNow } from "@/components/useNow";
 
@@ -22,10 +25,14 @@ export function TranscriptPanel({
   tuner,
   segmenter,
   transcripts,
+  transcribing,
+  onTranscribingChange,
 }: {
   tuner: TunerState;
   segmenter: SegmenterState;
   transcripts: Map<string, TranscriptEntry>;
+  transcribing: boolean;
+  onTranscribingChange: (transcribing: boolean) => void;
 }) {
   const { transmissions, level, capturing, error } = segmenter;
 
@@ -40,12 +47,24 @@ export function TranscriptPanel({
   const playerRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
 
+  /**
+   * Nothing counts as playing once its clip has left the list.
+   *
+   * Derived rather than corrected after the fact: a retune drops every clip,
+   * and the card that was showing "Stop" is gone with it. Only the element
+   * itself needs telling, below.
+   */
+  const playing =
+    playingId && transmissions.some((transmission) => transmission.id === playingId)
+      ? playingId
+      : null;
+
   const toggle = useCallback(
     (transmission: Transmission) => {
       const player = playerRef.current;
       if (!player) return;
 
-      if (playingId === transmission.id) {
+      if (playing === transmission.id) {
         player.pause();
         setPlayingId(null);
         return;
@@ -58,7 +77,7 @@ export function TranscriptPanel({
         () => setPlayingId(null),
       );
     },
-    [playingId],
+    [playing],
   );
 
   useEffect(() => {
@@ -68,6 +87,12 @@ export function TranscriptPanel({
     player.addEventListener("ended", clear);
     return () => player.removeEventListener("ended", clear);
   }, []);
+
+  // A retune revokes the object URLs, so without this the element would keep
+  // playing a blob nobody can see, on a frequency the user has left.
+  useEffect(() => {
+    if (playingId && !playing) playerRef.current?.pause();
+  }, [playingId, playing]);
 
   const listRef = useRef<HTMLOListElement | null>(null);
   /**
@@ -96,27 +121,20 @@ export function TranscriptPanel({
 
   return (
     <aside className="flex w-[340px] shrink-0 flex-col border-l border-border bg-surface">
-      <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
-        <span className="label">Transmissions</span>
-        {tuner.feed ? <LevelMeter level={level} capturing={capturing} /> : null}
+      <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
+        <span className="label truncate">Transmissions</span>
+        <span className="flex shrink-0 items-center gap-2">
+          <TranscribeSwitch value={transcribing} onChange={onTranscribingChange} />
+          {tuner.feed ? <LevelMeter level={level} capturing={capturing} /> : null}
+        </span>
       </div>
 
-      {!tuner.feed ? (
-        <Empty
-          title="Nothing tuned"
-          body="Pick a feed from an airport on the scope. Transmissions appear here as they happen, split out one at a time."
-        />
-      ) : error ? (
-        <Empty
-          title="Cannot process audio"
-          body={`The browser refused to build the audio graph: ${error}. Playback still works; splitting does not.`}
-        />
-      ) : transmissions.length === 0 ? (
-        <Empty
-          title="Listening"
-          body="Nothing has been said yet. A quiet frequency is normal — most of an hour on tower is silence."
-        />
-      ) : (
+      {/*
+        * The list outranks the empty states, including "nothing tuned".
+        * Stopping keeps what was already said, and hiding it behind a prompt to
+        * tune something would throw away the reason you stopped: to read it.
+        */}
+      {transmissions.length > 0 ? (
         <ol
           ref={listRef}
           onScroll={onScroll}
@@ -127,11 +145,26 @@ export function TranscriptPanel({
               key={transmission.id}
               transmission={transmission}
               transcript={transcripts.get(transmission.id)}
-              playing={playingId === transmission.id}
+              playing={playing === transmission.id}
               onToggle={toggle}
             />
           ))}
         </ol>
+      ) : !tuner.feed ? (
+        <Empty
+          title="Nothing tuned"
+          body="Pick a feed from an airport on the scope. Transmissions appear here as they happen, split out one at a time."
+        />
+      ) : error ? (
+        <Empty
+          title="Cannot process audio"
+          body={`The browser refused to build the audio graph: ${error}. Playback still works; splitting does not.`}
+        />
+      ) : (
+        <Empty
+          title="Listening"
+          body="Nothing has been said yet. A quiet frequency is normal — most of an hour on tower is silence."
+        />
       )}
 
       <audio ref={playerRef} hidden />
@@ -165,6 +198,55 @@ function LevelMeter({ level, capturing }: { level: number; capturing: boolean })
         />
       </span>
     </span>
+  );
+}
+
+/**
+ * Transcription on or off.
+ *
+ * It sits in the panel header rather than in a menu because it is the one
+ * control in the app with a running cost — every transmission that arrives
+ * while it is on is a speech call and a grounding call — and a cost you are
+ * paying should be in front of you.
+ *
+ * The decision applies to what arrives next. Clips already on screen keep
+ * whatever they have, and turning it back on does not process the backlog.
+ */
+function TranscribeSwitch({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={value}
+      onClick={() => onChange(!value)}
+      title={
+        value
+          ? "Every transmission is transcribed and matched to traffic. Click to record only."
+          : "Transmissions are captured for replay only — no transcription, no model calls. Click to resume."
+      }
+      className="flex items-center gap-1.5 rounded px-1 py-1 transition-colors hover:bg-surface-2"
+    >
+      <span
+        className={`relative flex h-3.5 w-6 shrink-0 items-center rounded-full transition-colors ${
+          value ? "bg-accent" : "bg-border-strong"
+        }`}
+      >
+        <span
+          className={`absolute h-2.5 w-2.5 rounded-full bg-surface transition-transform ${
+            value ? "translate-x-[0.75rem]" : "translate-x-[0.125rem]"
+          }`}
+        />
+      </span>
+      <span className={`label ${value ? "text-text" : "text-text-faint"}`}>
+        Transcribe
+      </span>
+    </button>
   );
 }
 
@@ -237,38 +319,180 @@ function formatAge(seconds: number): string {
  * actually happen here are configuration — no API key, no billing, a model the
  * account cannot reach — and every one of them is fixed by reading the message.
  *
- * Note this text is raw model output with no help of any kind. Callsigns will
- * be wrong. That is the point of this stage, and the grounding layer is what
- * answers it.
+ * When grounding succeeds the card shows the corrected transmission and the
+ * instructions read out of it. The raw speech output is not shown: it is the
+ * same sentence with the callsign wrong, and printing both leaves the reader to
+ * work out which one to believe.
  */
 function Transcript({ entry }: { entry: TranscriptEntry | undefined }) {
-  if (!entry || entry.status === "pending") {
-    return (
-      <p className="mt-1.5 text-[0.78rem] italic leading-snug text-text-faint">
-        Transcribing…
-      </p>
-    );
+  // Recorded with transcription switched off. The switch in the header already
+  // says why there is no text, so the card stays quiet rather than repeating it
+  // once per transmission.
+  if (entry?.status === "skipped") return null;
+
+  if (!entry || entry.status === "transcribing") {
+    return <Note>Transcribing…</Note>;
   }
 
   if (entry.status === "failed") {
     return (
-      <p className="mt-1.5 text-[0.75rem] leading-snug text-ifr">
-        {entry.error}
-      </p>
+      <p className="mt-1.5 text-[0.75rem] leading-snug text-ifr">{entry.error}</p>
     );
   }
 
-  if (!entry.text) {
-    // The model returned nothing. Usually a clip that is squelch and breath
-    // rather than speech — worth saying so instead of showing an empty card.
+  if (entry.status === "grounding") {
+    // The raw text is deliberately not shown here either. It would appear for a
+    // second and then be replaced by a corrected version of itself, which reads
+    // as the display changing its mind.
+    return <Note>Matching to traffic…</Note>;
+  }
+
+  if (!entry.raw) {
+    // The speech model returned nothing. Usually a clip that is squelch and
+    // breath rather than speech — worth saying so instead of an empty card.
+    return <Note>No speech recognised</Note>;
+  }
+
+  if (entry.error) {
+    // Transcribed but not grounded. Show what was heard and say plainly that
+    // it was not checked against anything.
     return (
-      <p className="mt-1.5 text-[0.78rem] italic leading-snug text-text-faint">
-        No speech recognised
-      </p>
+      <>
+        <p className="mt-1.5 text-[0.82rem] leading-snug text-text">{entry.raw}</p>
+        <Note>Not matched to traffic: {entry.error}</Note>
+      </>
     );
+  }
+
+  if (!entry.grounded) {
+    // No candidate set — nothing was tuned to a field we track, or ADS-B has
+    // not returned yet. The text stands on its own, unverified.
+    return (
+      <p className="mt-1.5 text-[0.82rem] leading-snug text-text">{entry.raw}</p>
+    );
+  }
+
+  if (entry.grounded.length === 0) {
+    // The clip transcribed to something, and the grounding step decided it was
+    // not a radio transmission at all. Speech models invent fluent sentences
+    // from noise, and this is where those get thrown away.
+    return <Note>Not a transmission</Note>;
   }
 
   return (
-    <p className="mt-1.5 text-[0.82rem] leading-snug text-text">{entry.text}</p>
+    <div className="mt-1.5 flex flex-col gap-2">
+      {entry.grounded.map((grounded, index) => (
+        <GroundedCard key={index} grounded={grounded} />
+      ))}
+    </div>
   );
+}
+
+function Note({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mt-1.5 text-[0.78rem] italic leading-snug text-text-faint">
+      {children}
+    </p>
+  );
+}
+
+function GroundedCard({ grounded }: { grounded: GroundedTransmission }) {
+  const chips = instructionChips(grounded.instructions);
+
+  return (
+    <div className="border-l-2 border-border-strong pl-2.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span
+          className={`rounded-sm px-1.5 py-0.5 font-mono text-[0.62rem] uppercase tracking-[0.08em] ${
+            grounded.speaker === "controller"
+              ? "bg-accent-wash text-accent"
+              : "bg-surface-2 text-text-dim"
+          }`}
+        >
+          {grounded.speaker === "controller"
+            ? "Tower"
+            : grounded.speaker === "aircraft"
+              ? "Aircraft"
+              : "Unknown"}
+        </span>
+
+        {grounded.callsign ? (
+          <span className="rounded-sm bg-accent-wash px-1.5 py-0.5 font-mono text-[0.68rem] tracking-[0.04em] text-accent-bright">
+            {grounded.callsign}
+          </span>
+        ) : (
+          <span
+            className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[0.62rem] uppercase tracking-[0.08em] text-text-faint"
+            title={
+              grounded.rejectedCallsign
+                ? `Heard “${grounded.rejectedCallsign}”, which is not an aircraft in range. Most likely no ADS-B Out.`
+                : "No aircraft in range matched what was said."
+            }
+          >
+            Unmatched
+          </span>
+        )}
+
+        {grounded.callsign && grounded.confidence < 0.75 ? (
+          <span className="tnum font-mono text-[0.62rem] text-text-faint">
+            {Math.round(grounded.confidence * 100)}%
+          </span>
+        ) : null}
+      </div>
+
+      <p className="mt-1 text-[0.82rem] leading-snug text-text">{grounded.corrected}</p>
+
+      {chips.length > 0 ? (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {chips.map((chip, index) => (
+            <span
+              key={index}
+              className="tnum rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[0.64rem] tracking-[0.04em] text-text-dim"
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** What a controller actually said, reduced to the numbers worth glancing at. */
+const INSTRUCTION_LABELS: Record<string, string> = {
+  landing_clearance: "Cleared to land",
+  takeoff_clearance: "Cleared for takeoff",
+  line_up_and_wait: "Line up and wait",
+  taxi: "Taxi",
+  hold_short: "Hold short",
+  heading: "Heading",
+  altitude: "Altitude",
+  speed: "Speed",
+  squawk: "Squawk",
+  frequency_change: "Contact",
+  traffic_advisory: "Traffic",
+  readback: "Readback",
+  other: "",
+};
+
+function instructionChips(
+  instructions: GroundedTransmission["instructions"],
+): string[] {
+  const chips: string[] = [];
+  for (const instruction of instructions) {
+    const parts: string[] = [];
+    const label = INSTRUCTION_LABELS[instruction.type] ?? instruction.type;
+    if (label) parts.push(label);
+    if (instruction.runway) parts.push(`RWY ${instruction.runway}`);
+    if (instruction.headingDeg !== null)
+      parts.push(`${String(Math.round(instruction.headingDeg)).padStart(3, "0")}°`);
+    if (instruction.altitudeFt !== null)
+      parts.push(`${instruction.altitudeFt.toLocaleString()} ft`);
+    if (instruction.speedKt !== null) parts.push(`${instruction.speedKt} kt`);
+    if (instruction.squawk) parts.push(`SQ ${instruction.squawk}`);
+    if (instruction.frequencyMhz !== null)
+      parts.push(instruction.frequencyMhz.toFixed(3));
+    if (parts.length > 0) chips.push(parts.join(" "));
+  }
+  return chips;
 }

@@ -51,7 +51,7 @@ import {
   trafficLayer,
 } from "./layers";
 import { buildTargetIcons } from "./trafficIcon";
-import { useTraffic, type TrafficStatus } from "./useTraffic";
+import type { TrafficState, TrafficStatus } from "./useTraffic";
 
 /**
  * Number of failed basemap tiles before we tell the user the ground is
@@ -65,17 +65,15 @@ const COVERAGE_GAP_THRESHOLD = 4;
 
 interface ScopeProps {
   mapRef: React.RefObject<MapRef | null>;
-  mapReady: boolean;
   onReady: (ready: boolean) => void;
   onSelectAirport: (airport: { ident: string; name: string } | null) => void;
+  traffic: TrafficState;
 }
 
-export function Scope({ mapRef, mapReady, onReady, onSelectAirport }: ScopeProps) {
+export function Scope({ mapRef, onReady, onSelectAirport, traffic }: ScopeProps) {
   const [basemapId, setBasemapId] = useState<BasemapId>(DEFAULT_BASEMAP);
   const [coverageGap, setCoverageGap] = useState(false);
   const tileFailures = useRef(0);
-
-  const traffic = useTraffic(mapRef, mapReady);
 
   const basemap = BASEMAPS[basemapId];
   const style = useMemo(() => buildStyle(basemap), [basemap]);

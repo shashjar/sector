@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { encodeWav } from "@/lib/wav";
 
@@ -28,7 +28,6 @@ export interface SegmenterState {
   capturing: boolean;
   /** Set when the audio graph could not be built at all. */
   error: string | null;
-  clear: () => void;
 }
 
 interface WorkletMessage {
@@ -64,15 +63,30 @@ export function useSegmenter(
   const contextRef = useRef<AudioContext | null>(null);
   const urlsRef = useRef<string[]>([]);
   const counter = useRef(0);
-
-  const clear = useCallback(() => {
-    for (const url of urlsRef.current) URL.revokeObjectURL(url);
-    urlsRef.current = [];
-    setTransmissions([]);
-  }, []);
+  /** The feed the clips on screen came from, which outlives its audio element. */
+  const heldMount = useRef<string | null>(null);
 
   useEffect(() => {
     if (!audio || !mount) return;
+
+    /*
+     * Only a change of frequency invalidates what is on screen.
+     *
+     * Stopping does not: those transmissions are still the ones you were just
+     * listening to, and resuming the same feed continues the same conversation.
+     * Neither does reconnecting — a stream cut by the platform's function limit
+     * comes back on a new audio element every few minutes, and wiping the panel
+     * each time would make a busy tower unreadable.
+     *
+     * Revoking rather than dropping matters: an object URL pins its blob in
+     * memory until it is released.
+     */
+    if (heldMount.current !== null && heldMount.current !== mount) {
+      for (const url of urlsRef.current) URL.revokeObjectURL(url);
+      urlsRef.current = [];
+      setTransmissions([]);
+    }
+    heldMount.current = mount;
 
     let cancelled = false;
     let context: AudioContext | null = null;
@@ -165,6 +179,7 @@ export function useSegmenter(
     };
   }, [audio, mount]);
 
+  // Nothing else releases these once the app goes away.
   useEffect(() => {
     const urls = urlsRef;
     return () => {
@@ -173,5 +188,5 @@ export function useSegmenter(
     };
   }, []);
 
-  return { transmissions, level, capturing, error, clear };
+  return { transmissions, level, capturing, error };
 }

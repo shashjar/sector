@@ -33,6 +33,14 @@ export type TrafficStatus =
 
 export interface TrafficState {
   status: TrafficStatus;
+  /**
+   * The raw targets behind the rendered features.
+   *
+   * Exposed because the grounding step needs to know who is actually in the
+   * air, not just where to draw them — the callsigns here are the candidate
+   * set a transcript gets matched against.
+   */
+  aircraft: Aircraft[];
   /** Dead-reckoned positions, ready to hand to a GeoJSON source. */
   features: GeoJSON.FeatureCollection<GeoJSON.Point>;
   count: number;
@@ -228,6 +236,7 @@ export function useTraffic(mapRef: React.RefObject<MapRef | null>, ready: boolea
 
   return {
     status,
+    aircraft,
     features,
     count: features.features.length,
     lastUpdated: fetchedAt,
