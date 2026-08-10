@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
 
 import { Scope } from "@/components/scope/Scope";
+import { useSegmenter } from "@/components/scope/useSegmenter";
 import { useTuner } from "@/components/scope/useTuner";
 import { useWeather } from "@/components/scope/useWeather";
 import {
@@ -58,6 +59,7 @@ export function Cockpit() {
 
   const weather = useWeather(mapRef, mapReady);
   const tuner = useTuner();
+  const segmenter = useSegmenter(tuner.audioEl, tuner.feed?.mount ?? null);
 
   useEffect(() => {
     if (!selected) return;
@@ -106,7 +108,7 @@ export function Cockpit() {
           ) : null}
         </main>
 
-        <TranscriptPanel />
+        <TranscriptPanel tuner={tuner} segmenter={segmenter} />
       </div>
 
       <TunerBar tuner={tuner} />

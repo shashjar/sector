@@ -30,6 +30,14 @@ export interface TunerState {
   tunedAt: number | null;
   /** What LiveATC calls this receiver, once it has told us. */
   liveLabel: string | null;
+  /**
+   * The element currently playing, so the segmenter can tap it.
+   *
+   * State rather than a ref because it is replaced on every reconnect, and the
+   * audio graph has to be rebuilt against the new one — a ref would change
+   * without telling anybody.
+   */
+  audioEl: HTMLAudioElement | null;
   tune: (feed: Feed) => void;
   stop: () => void;
   retry: () => void;
@@ -59,6 +67,7 @@ export function useTuner(): TunerState {
   const [status, setStatus] = useState<TunerStatus>("idle");
   const [tunedAt, setTunedAt] = useState<number | null>(null);
   const [liveLabel, setLiveLabel] = useState<string | null>(null);
+  const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null);
 
   const teardown = useCallback(() => {
     if (retryTimer.current) clearTimeout(retryTimer.current);
@@ -73,6 +82,7 @@ export function useTuner(): TunerState {
       audio.remove();
       audioRef.current = null;
     }
+    setAudioEl(null);
   }, []);
 
   /**
@@ -108,6 +118,7 @@ export function useTuner(): TunerState {
       audio.dataset.feed = target.mount;
       document.body.append(audio);
       audioRef.current = audio;
+      setAudioEl(audio);
       setStatus("connecting");
 
       audio.addEventListener("playing", () => {
@@ -189,5 +200,5 @@ export function useTuner(): TunerState {
 
   useEffect(() => teardown, [teardown]);
 
-  return { feed, status, tunedAt, liveLabel, tune, stop, retry };
+  return { feed, status, tunedAt, liveLabel, audioEl, tune, stop, retry };
 }

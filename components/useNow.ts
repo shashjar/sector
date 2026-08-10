@@ -5,7 +5,7 @@ import { useMemo, useSyncExternalStore } from "react";
 /**
  * A clock, as an external store.
  *
- * Anything showing an age — how old an observation is, how long since a target
+ * Anything showing an age — how old a transmission is, how long since a target
  * was heard — needs the current time, and reading `Date.now()` while rendering
  * makes the output depend on when React happens to re-render rather than on
  * elapsed time.
@@ -48,8 +48,27 @@ function createClock(intervalMs: number) {
   };
 }
 
+/**
+ * One clock per interval, shared by every consumer.
+ *
+ * Module-level rather than memoised per component. A transcript can hold sixty
+ * cards, each wanting a live age — memoising inside the hook gives each of them
+ * a private timer ticking on its own schedule, which is both wasteful and
+ * visibly wrong, since their ages then update at different moments.
+ */
+const clocks = new Map<number, ReturnType<typeof createClock>>();
+
+function sharedClock(intervalMs: number) {
+  let clock = clocks.get(intervalMs);
+  if (!clock) {
+    clock = createClock(intervalMs);
+    clocks.set(intervalMs, clock);
+  }
+  return clock;
+}
+
 /** Returns 0 until mounted. Callers treat 0 as "not known yet". */
 export function useNow(intervalMs: number): number {
-  const clock = useMemo(() => createClock(intervalMs), [intervalMs]);
+  const clock = useMemo(() => sharedClock(intervalMs), [intervalMs]);
   return useSyncExternalStore(clock.subscribe, clock.getSnapshot, () => 0);
 }
