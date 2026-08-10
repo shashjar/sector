@@ -1,6 +1,8 @@
 import type { ExpressionSpecification } from "maplibre-gl";
 import type { LayerProps } from "react-map-gl/maplibre";
 
+import { TARGET_ICON } from "./trafficIcon";
+
 /**
  * Map layer definitions for Sector's own data.
  *
@@ -12,6 +14,7 @@ const RUNWAY = "#c2cede";
 const AIRPORT_RING = "#c8d3dd"; // --text
 const HALO = "#070a0e"; // --bg
 const LABEL = "#e4ecf3";
+const TARGET_LABEL = "#dce6f0";
 
 export const AIRPORT_SOURCE = "airports";
 export const RUNWAY_SOURCE = "runways";
@@ -158,5 +161,67 @@ export const airportLabelLayer: LayerProps = {
     "text-halo-color": HALO,
     "text-halo-width": 1.4,
     "text-halo-blur": 0.2,
+  },
+};
+
+export const TRAFFIC_SOURCE = "traffic";
+export const TRAFFIC_LAYER = "traffic-targets";
+
+/**
+ * Aircraft.
+ *
+ * `icon-rotate` is bound straight to the reported track and aligned to the map,
+ * so a target points where it is actually going as the map rotates or tilts.
+ * `icon-allow-overlap` is true because a target that vanishes because another
+ * target is near it would be a lie about the traffic picture — and near-misses
+ * are exactly when you most need to see both.
+ */
+export const trafficLayer: LayerProps = {
+  id: TRAFFIC_LAYER,
+  type: "symbol",
+  source: TRAFFIC_SOURCE,
+  layout: {
+    "icon-image": TARGET_ICON,
+    "icon-rotate": ["get", "track"],
+    "icon-rotation-alignment": "map",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true,
+    "icon-size": ["interpolate", ["linear"], ["zoom"], 7, 0.6, 12, 0.85, 16, 1.1],
+  },
+  paint: {
+    // Targets fade as they go unheard rather than blinking out, so a receiver
+    // dropping is visible as it happens.
+    "icon-opacity": ["get", "freshness"],
+  },
+};
+
+/**
+ * Data blocks.
+ *
+ * Unlike the icons these *do* collide: overlapping blocks are unreadable, and
+ * dropping one is better than printing two on top of each other. The symbol
+ * stays regardless, so a target is never hidden — only its label.
+ */
+export const trafficLabelLayer: LayerProps = {
+  id: "traffic-labels",
+  type: "symbol",
+  source: TRAFFIC_SOURCE,
+  minzoom: 9,
+  layout: {
+    "text-field": ["get", "label"],
+    "text-font": ["Noto Sans Bold"],
+    "text-size": 10,
+    "text-offset": [1.1, 0],
+    "text-anchor": "left",
+    "text-justify": "left",
+    "text-padding": 3,
+    "text-line-height": 1.15,
+    "text-optional": true,
+  },
+  paint: {
+    "text-color": TARGET_LABEL,
+    "text-halo-color": HALO,
+    "text-halo-width": 1.5,
+    "text-opacity": ["get", "freshness"],
   },
 };

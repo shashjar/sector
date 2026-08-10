@@ -16,8 +16,9 @@
  */
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import type { ErrorEvent } from "maplibre-gl";
+import type { ErrorEvent, Map as MapLibreMap } from "maplibre-gl";
 import { useCallback, useMemo, useRef, useState } from "react";
+import type { MapRef } from "react-map-gl/maplibre";
 import Map, {
   AttributionControl,
   Layer,
@@ -42,7 +43,12 @@ import {
   airportRingLayer,
   RUNWAY_SOURCE,
   runwayLayer,
+  TRAFFIC_SOURCE,
+  trafficLabelLayer,
+  trafficLayer,
 } from "./layers";
+import { buildTargetIcons } from "./trafficIcon";
+import { useTraffic, type TrafficStatus } from "./useTraffic";
 
 /**
  * Number of failed basemap tiles before we tell the user the ground is
@@ -57,7 +63,11 @@ const COVERAGE_GAP_THRESHOLD = 4;
 export function Scope() {
   const [basemapId, setBasemapId] = useState<BasemapId>(DEFAULT_BASEMAP);
   const [coverageGap, setCoverageGap] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const tileFailures = useRef(0);
+  const mapRef = useRef<MapRef>(null);
+
+  const traffic = useTraffic(mapRef, mapReady);
 
   const basemap = BASEMAPS[basemapId];
   const style = useMemo(() => buildStyle(basemap), [basemap]);
@@ -98,6 +108,23 @@ export function Scope() {
     console.error("[scope]", sourceId ? `source "${sourceId}":` : "", event.error ?? event);
   }, []);
 
+  /**
+   * Register the target symbols with the map.
+   *
+   * Runs on load and again on every style change: switching basemap replaces
+   * the whole style, and MapLibre discards registered images along with it. A
+   * symbol layer whose icon has gone missing renders nothing and says nothing.
+   */
+  const registerIcons = useCallback((event: { target: MapLibreMap }) => {
+    const map = event.target;
+    for (const icon of buildTargetIcons()) {
+      if (!map.hasImage(icon.id)) {
+        map.addImage(icon.id, icon.data, { pixelRatio: icon.pixelRatio });
+      }
+    }
+    setMapReady(true);
+  }, []);
+
   return (
     <div className="relative h-full w-full">
       <Map
@@ -110,8 +137,13 @@ export function Scope() {
         // Attribution is added explicitly below so it can be compact; the
         // default control renders expanded and crowds a small scope.
         attributionControl={false}
+        ref={mapRef}
         onError={handleError}
         onMoveStart={resetCoverage}
+        onLoad={registerIcons}
+        // Switching basemap swaps the whole style, which discards registered
+        // images along with it. Re-adding on styledata keeps targets drawn.
+        onStyleData={registerIcons}
         style={{ width: "100%", height: "100%" }}
       >
         {/*
@@ -127,6 +159,13 @@ export function Scope() {
           <Layer {...airportRingHaloLayer} />
           <Layer {...airportRingLayer} />
           <Layer {...airportLabelLayer} />
+        </Source>
+
+        {/* Traffic sits above the static airspace: it is what moves, and what
+            the eye should find first. */}
+        <Source id={TRAFFIC_SOURCE} type="geojson" data={traffic.features}>
+          <Layer {...trafficLayer} />
+          <Layer {...trafficLabelLayer} />
         </Source>
 
         <NavigationControl position="bottom-right" showCompass={false} />
@@ -158,10 +197,60 @@ export function Scope() {
               ) : null}
             </div>
           ) : null}
+
+          <TrafficStatus status={traffic.status} count={traffic.count} />
         </div>
 
         <BasemapSwitcher value={basemapId} onChange={selectBasemap} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the traffic feed is doing, when it is doing something other than working.
+ *
+ * Silence is not an option for any of these. An empty scope looks identical
+ * whether the airspace is quiet, the query was declined, or the feed is down —
+ * and those are three completely different things to a pilot.
+ */
+function TrafficStatus({
+  status,
+  count,
+}: {
+  status: TrafficStatus;
+  count: number;
+}) {
+  if (status === "ok") {
+    // Needs its own ground. Bare text sits directly on a sectional and is
+    // illegible over dense areas — which is exactly where the count matters.
+    return (
+      <p className="mt-2 inline-block rounded border border-border bg-surface/90 px-2 py-1 font-mono text-[0.68rem] uppercase tracking-[0.1em] text-text-dim backdrop-blur-sm">
+        {count} contact{count === 1 ? "" : "s"}
+      </p>
+    );
+  }
+
+  const message = {
+    loading: ["Acquiring traffic", "Asking the receiver network for this area."],
+    empty: [
+      "No aircraft in view",
+      "Coverage comes from volunteer receivers, so quiet areas may simply be unheard rather than empty.",
+    ],
+    "too-wide": [
+      "Zoomed out too far for traffic",
+      "The feed serves a 250 nm radius at most. Zoom in to see contacts.",
+    ],
+    unreachable: [
+      "Traffic feed unreachable",
+      "Showing the last known picture. Retrying every few seconds.",
+    ],
+  }[status];
+
+  return (
+    <div className="mt-2 max-w-xs rounded border border-border-strong bg-surface/95 px-3 py-2 backdrop-blur-sm">
+      <p className="text-[0.8rem] text-text">{message[0]}</p>
+      <p className="mt-0.5 text-[0.75rem] leading-snug text-text-dim">{message[1]}</p>
     </div>
   );
 }
