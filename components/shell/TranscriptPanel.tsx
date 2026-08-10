@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { SegmenterState, Transmission } from "@/components/scope/useSegmenter";
+import type { TranscriptEntry } from "@/components/scope/useTranscripts";
 import type { TunerState } from "@/components/scope/useTuner";
 import { useNow } from "@/components/useNow";
 
@@ -20,9 +21,11 @@ const STICK_THRESHOLD_PX = 48;
 export function TranscriptPanel({
   tuner,
   segmenter,
+  transcripts,
 }: {
   tuner: TunerState;
   segmenter: SegmenterState;
+  transcripts: Map<string, TranscriptEntry>;
 }) {
   const { transmissions, level, capturing, error } = segmenter;
 
@@ -123,6 +126,7 @@ export function TranscriptPanel({
             <TransmissionCard
               key={transmission.id}
               transmission={transmission}
+              transcript={transcripts.get(transmission.id)}
               playing={playingId === transmission.id}
               onToggle={toggle}
             />
@@ -166,10 +170,12 @@ function LevelMeter({ level, capturing }: { level: number; capturing: boolean })
 
 function TransmissionCard({
   transmission,
+  transcript,
   playing,
   onToggle,
 }: {
   transmission: Transmission;
+  transcript: TranscriptEntry | undefined;
   playing: boolean;
   onToggle: (transmission: Transmission) => void;
 }) {
@@ -211,10 +217,7 @@ function TransmissionCard({
         </p>
       ) : null}
 
-      {/* Transcription lands next; until then the clip is the content. */}
-      <p className="mt-1.5 text-[0.78rem] italic leading-snug text-text-faint">
-        Not yet transcribed
-      </p>
+      <Transcript entry={transcript} />
     </li>
   );
 }
@@ -225,4 +228,47 @@ function formatAge(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
   return `${Math.floor(minutes / 60)}h ago`;
+}
+
+/**
+ * The transcript, or an honest account of why there isn't one.
+ *
+ * A failure prints the reason rather than a generic apology. The failures that
+ * actually happen here are configuration — no API key, no billing, a model the
+ * account cannot reach — and every one of them is fixed by reading the message.
+ *
+ * Note this text is raw model output with no help of any kind. Callsigns will
+ * be wrong. That is the point of this stage, and the grounding layer is what
+ * answers it.
+ */
+function Transcript({ entry }: { entry: TranscriptEntry | undefined }) {
+  if (!entry || entry.status === "pending") {
+    return (
+      <p className="mt-1.5 text-[0.78rem] italic leading-snug text-text-faint">
+        Transcribing…
+      </p>
+    );
+  }
+
+  if (entry.status === "failed") {
+    return (
+      <p className="mt-1.5 text-[0.75rem] leading-snug text-ifr">
+        {entry.error}
+      </p>
+    );
+  }
+
+  if (!entry.text) {
+    // The model returned nothing. Usually a clip that is squelch and breath
+    // rather than speech — worth saying so instead of showing an empty card.
+    return (
+      <p className="mt-1.5 text-[0.78rem] italic leading-snug text-text-faint">
+        No speech recognised
+      </p>
+    );
+  }
+
+  return (
+    <p className="mt-1.5 text-[0.82rem] leading-snug text-text">{entry.text}</p>
+  );
 }
