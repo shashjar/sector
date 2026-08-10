@@ -17,6 +17,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import type { ErrorEvent, Map as MapLibreMap } from "maplibre-gl";
+import type { MapLayerMouseEvent } from "react-map-gl/maplibre";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
 import Map, {
@@ -37,10 +38,12 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM } from "@/lib/constants";
 
 import { BasemapSwitcher } from "./BasemapSwitcher";
 import {
+  AIRPORT_LAYER,
   AIRPORT_SOURCE,
   airportLabelLayer,
   airportRingHaloLayer,
   airportRingLayer,
+  feedBadgeLayer,
   RUNWAY_SOURCE,
   runwayLayer,
   TRAFFIC_SOURCE,
@@ -64,9 +67,10 @@ interface ScopeProps {
   mapRef: React.RefObject<MapRef | null>;
   mapReady: boolean;
   onReady: (ready: boolean) => void;
+  onSelectAirport: (airport: { ident: string; name: string } | null) => void;
 }
 
-export function Scope({ mapRef, mapReady, onReady }: ScopeProps) {
+export function Scope({ mapRef, mapReady, onReady, onSelectAirport }: ScopeProps) {
   const [basemapId, setBasemapId] = useState<BasemapId>(DEFAULT_BASEMAP);
   const [coverageGap, setCoverageGap] = useState(false);
   const tileFailures = useRef(0);
@@ -129,6 +133,28 @@ export function Scope({ mapRef, mapReady, onReady }: ScopeProps) {
     onReady(true);
   }, [onReady]);
 
+  /**
+   * Selecting an airport.
+   *
+   * The hit target is the ring layer rather than the badge: the badge is a few
+   * pixels across and marks only the airports with feeds, while every airport
+   * has frequencies worth showing. Clicking bare map clears the selection,
+   * which is what makes the panel dismissible without hunting for a close box.
+   */
+  const handleClick = useCallback(
+    (event: MapLayerMouseEvent) => {
+      const feature = event.features?.[0];
+      const ident = feature?.properties?.ident;
+      if (typeof ident !== "string") {
+        onSelectAirport(null);
+        return;
+      }
+      const name = feature?.properties?.name;
+      onSelectAirport({ ident, name: typeof name === "string" ? name : ident });
+    },
+    [onSelectAirport],
+  );
+
   return (
     <div className="relative h-full w-full">
       <Map
@@ -145,6 +171,9 @@ export function Scope({ mapRef, mapReady, onReady }: ScopeProps) {
         onError={handleError}
         onMoveStart={resetCoverage}
         onLoad={registerIcons}
+        interactiveLayerIds={[AIRPORT_LAYER]}
+        onClick={handleClick}
+        cursor="auto"
         // Switching basemap swaps the whole style, which discards registered
         // images along with it. Re-adding on styledata keeps targets drawn.
         onStyleData={registerIcons}
@@ -171,6 +200,7 @@ export function Scope({ mapRef, mapReady, onReady }: ScopeProps) {
           <Layer {...airportRingHaloLayer} />
           <Layer {...airportRingLayer} />
           <Layer {...airportLabelLayer} />
+          <Layer {...feedBadgeLayer} />
         </Source>
 
         {/* Traffic sits above the static airspace: it is what moves, and what

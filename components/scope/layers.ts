@@ -1,6 +1,8 @@
 import type { ExpressionSpecification } from "maplibre-gl";
 import type { LayerProps } from "react-map-gl/maplibre";
 
+import { AIRPORTS_WITH_FEEDS } from "@/lib/feeds";
+
 import { TARGET_ICON } from "./trafficIcon";
 
 /**
@@ -15,6 +17,7 @@ const AIRPORT_RING = "#c8d3dd"; // --text
 const HALO = "#070a0e"; // --bg
 const LABEL = "#e4ecf3";
 const TARGET_LABEL = "#dce6f0";
+const ACCENT = "#f0a202"; // --accent
 
 /**
  * Flight-category colours, matching --vfr/--mvfr/--ifr/--lifr.
@@ -247,5 +250,26 @@ export const trafficLabelLayer: LayerProps = {
     "text-halo-color": HALO,
     "text-halo-width": 1.5,
     "text-opacity": ["get", "freshness"],
+  },
+};
+
+/**
+ * Which airports have a feed.
+ *
+ * A filled dot inside the ring, in the accent colour. Deliberately the same
+ * amber used for a selected target: it is the "you can do something here" mark,
+ * and there should only be one of those.
+ */
+export const feedBadgeLayer: LayerProps = {
+  id: "airport-feed-badge",
+  type: "circle",
+  source: AIRPORT_SOURCE,
+  minzoom: 7,
+  filter: ["in", ["get", "ident"], ["literal", AIRPORTS_WITH_FEEDS]],
+  paint: {
+    "circle-color": ACCENT,
+    "circle-radius": ["interpolate", ["linear"], ["zoom"], 7, 1.6, 12, 2.6, 16, 4],
+    "circle-stroke-color": HALO,
+    "circle-stroke-width": 1,
   },
 };
