@@ -60,12 +60,16 @@ import { useTraffic, type TrafficStatus } from "./useTraffic";
  */
 const COVERAGE_GAP_THRESHOLD = 4;
 
-export function Scope() {
+interface ScopeProps {
+  mapRef: React.RefObject<MapRef | null>;
+  mapReady: boolean;
+  onReady: (ready: boolean) => void;
+}
+
+export function Scope({ mapRef, mapReady, onReady }: ScopeProps) {
   const [basemapId, setBasemapId] = useState<BasemapId>(DEFAULT_BASEMAP);
   const [coverageGap, setCoverageGap] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
   const tileFailures = useRef(0);
-  const mapRef = useRef<MapRef>(null);
 
   const traffic = useTraffic(mapRef, mapReady);
 
@@ -122,8 +126,8 @@ export function Scope() {
         map.addImage(icon.id, icon.data, { pixelRatio: icon.pixelRatio });
       }
     }
-    setMapReady(true);
-  }, []);
+    onReady(true);
+  }, [onReady]);
 
   return (
     <div className="relative h-full w-full">
@@ -155,7 +159,15 @@ export function Scope() {
           <Layer {...runwayLayer(!basemap.drawsOwnRunways)} />
         </Source>
 
-        <Source id={AIRPORT_SOURCE} type="geojson" data="/data/airports.geojson">
+        {/* promoteId makes each airport's identifier usable as a feature id,
+            which is what lets weather be applied as feature state instead of
+            rewriting a megabyte of GeoJSON every time an observation lands. */}
+        <Source
+          id={AIRPORT_SOURCE}
+          type="geojson"
+          data="/data/airports.geojson"
+          promoteId="ident"
+        >
           <Layer {...airportRingHaloLayer} />
           <Layer {...airportRingLayer} />
           <Layer {...airportLabelLayer} />

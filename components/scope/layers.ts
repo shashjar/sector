@@ -16,6 +16,30 @@ const HALO = "#070a0e"; // --bg
 const LABEL = "#e4ecf3";
 const TARGET_LABEL = "#dce6f0";
 
+/**
+ * Flight-category colours, matching --vfr/--mvfr/--ifr/--lifr.
+ *
+ * These are the FAA's own bands, and pilots read the colour before the number.
+ * This is the payload the airport rings exist to carry: a 56-day sectional
+ * cannot know today's conditions, so the ring is the one thing on screen that
+ * says whether a field is flyable right now.
+ */
+const CATEGORY_COLOR: ExpressionSpecification = [
+  "match",
+  ["coalesce", ["feature-state", "category"], "NONE"],
+  "VFR",
+  "#3fb950",
+  "MVFR",
+  "#58a6ff",
+  "IFR",
+  "#f85149",
+  "LIFR",
+  "#d2a8ff",
+  // Airports with no station, or a station that has not reported, keep the
+  // neutral ring. Guessing a category for them would be worse than silence.
+  AIRPORT_RING,
+];
+
 export const AIRPORT_SOURCE = "airports";
 export const RUNWAY_SOURCE = "runways";
 export const AIRPORT_LAYER = "airport-rings";
@@ -125,7 +149,7 @@ export const airportRingLayer: LayerProps = {
   source: AIRPORT_SOURCE,
   paint: {
     "circle-color": "rgba(0,0,0,0)",
-    "circle-stroke-color": AIRPORT_RING,
+    "circle-stroke-color": CATEGORY_COLOR,
     "circle-stroke-width": RING_WIDTH,
     "circle-radius": RING_RADIUS,
     "circle-stroke-opacity": ringOpacity(1),
