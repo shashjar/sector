@@ -163,7 +163,7 @@ export function TranscriptPanel({
       ) : (
         <Empty
           title="Listening"
-          body="Nothing has been said yet. A quiet frequency is normal — most of an hour on tower is silence."
+          body="Nothing has been said yet."
         />
       )}
 

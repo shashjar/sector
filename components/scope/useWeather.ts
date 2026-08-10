@@ -41,7 +41,7 @@ export interface WeatherState {
   /** The reporting station nearest the centre of the view, if any. */
   focused: Observation | null;
   focusedName: string | null;
-  /** Which of the focused field's runways the wind favours. */
+  /** Which of the focused field's runways the wind favors. */
   focusedRunway: RunwayWind | null;
 }
 
@@ -210,7 +210,7 @@ export function useWeather(mapRef: React.RefObject<MapRef | null>, ready: boolea
   const focused = focusedIcao ? (byIcao.get(focusedIcao) ?? null) : null;
 
   /**
-   * Which runway the wind favours at the focused field.
+   * Which runway the wind favors at the focused field.
    *
    * The runway index loads once per session and is shared, so this is a map
    * lookup after the first call rather than a fetch.

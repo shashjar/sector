@@ -10,6 +10,9 @@ import {
   airportRingLayer,
   RUNWAY_SOURCE,
   runwayLayer,
+  TRAFFIC_SOURCE,
+  trafficLabelLayer,
+  trafficLayer,
 } from "./layers";
 
 /**
@@ -29,6 +32,7 @@ function validate(layers: unknown[]) {
     sources: {
       [AIRPORT_SOURCE]: { type: "geojson", data: "/data/airports.geojson" },
       [RUNWAY_SOURCE]: { type: "geojson", data: "/data/runways.geojson" },
+      [TRAFFIC_SOURCE]: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
     },
     layers,
   } as unknown as StyleSpecification;
@@ -52,6 +56,25 @@ describe("scope layers", () => {
         airportLabelLayer,
       ]),
     ).toEqual([]);
+  });
+
+  it("accepts the traffic layers, including the formatted data block", () => {
+    // The data block is a "format" expression so the climb/descent arrow can be
+    // scaled on its own. An invalid one would not throw — the labels would just
+    // stop drawing, and every target would silently lose its readout.
+    expect(validate([trafficLayer, trafficLabelLayer])).toEqual([]);
+  });
+
+  it("scales the vertical trend arrow above the digits beside it", () => {
+    const field = layoutOf(trafficLabelLayer)?.["text-field"] as unknown[];
+    expect(field[0]).toBe("format");
+    // The arrow's section carries the only font-scale in the block.
+    expect(field).toContainEqual({ "font-scale": expect.any(Number) });
+    const scale = field.find(
+      (section): section is { "font-scale": number } =>
+        typeof section === "object" && section !== null && "font-scale" in section,
+    );
+    expect(scale?.["font-scale"]).toBeGreaterThan(1);
   });
 
   it("stays valid with runways hidden on the sectional", () => {

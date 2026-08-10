@@ -175,7 +175,7 @@ describe("reducing a batch", () => {
   });
 });
 
-describe("favoured runway", () => {
+describe("favored runway", () => {
   /** KSQL runway 12/30, true headings as published. */
   const KSQL_ENDS = [
     { ident: "12", headingTrue: 138 },
@@ -183,7 +183,7 @@ describe("favoured runway", () => {
   ];
 
   it("picks the end the wind is blowing down", () => {
-    // A north-westerly favours runway 30, which points 318 true.
+    // A north-westerly favors runway 30, which points 318 true.
     const result = favoredRunway(320, 11, KSQL_ENDS);
     expect(result?.ident).toBe("30");
     expect(result?.headwindKt).toBeCloseTo(11, 1);
@@ -211,7 +211,7 @@ describe("favoured runway", () => {
     expect(left?.crosswindKt).toBeCloseTo(right?.crosswindKt as number, 6);
   });
 
-  it("declines to favour a runway in calm or variable wind", () => {
+  it("declines to favor a runway in calm or variable wind", () => {
     // Below three knots the direction is noise and every runway is equally fine.
     expect(favoredRunway(320, 2, KSQL_ENDS)).toBeNull();
     expect(favoredRunway(null, 10, KSQL_ENDS)).toBeNull();

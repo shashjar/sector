@@ -59,25 +59,46 @@ const EMPTY: GeoJSON.FeatureCollection<GeoJSON.Point> = {
  *
  * "130 ↑ 310" is thirteen thousand feet, climbing, three hundred and ten knots.
  */
-function dataBlock(aircraft: Aircraft): string {
-  if (aircraft.onGround) return `${aircraft.callsign}\nGND`;
+interface DataBlock {
+  /** Callsign line, then altitude — everything before the arrow. */
+  primary: string;
+  /** The climb/descent arrow alone, so the layer can size it separately. */
+  trend: string;
+  /** Groundspeed, with the space that separates it from the arrow. */
+  secondary: string;
+}
 
-  const parts: string[] = [];
-  if (aircraft.altitudeFt !== null) {
-    parts.push(String(Math.round(aircraft.altitudeFt / 100)).padStart(3, "0"));
+function dataBlock(aircraft: Aircraft): DataBlock {
+  if (aircraft.onGround) {
+    return { primary: `${aircraft.callsign}\nGND`, trend: "", secondary: "" };
   }
+
+  const altitude =
+    aircraft.altitudeFt !== null
+      ? String(Math.round(aircraft.altitudeFt / 100)).padStart(3, "0")
+      : "";
   const rate = aircraft.verticalRateFpm ?? 0;
   // Below 100 fpm an aircraft is level for display purposes; ADS-B reports
   // small nonzero rates constantly and an arrow that flickers is worse than none.
-  if (rate > 100) parts.push("↑");
-  else if (rate < -100) parts.push("↓");
-  if (aircraft.groundSpeedKt !== null) {
-    parts.push(String(Math.round(aircraft.groundSpeedKt)));
+  const trend = rate > 100 ? "↑" : rate < -100 ? "↓" : "";
+  const speed =
+    aircraft.groundSpeedKt !== null ? String(Math.round(aircraft.groundSpeedKt)) : "";
+
+  if (altitude === "" && trend === "" && speed === "") {
+    return { primary: aircraft.callsign, trend: "", secondary: "" };
   }
 
-  return parts.length > 0
-    ? `${aircraft.callsign}\n${parts.join(" ")}`
-    : aircraft.callsign;
+  /*
+   * The arrow is handed over separately so the layer can scale it on its own.
+   * It is the one glyph in the block that is read as a shape rather than as a
+   * value, and at label size it disappears among the digits beside it. The
+   * spaces around it therefore belong to the neighbouring pieces.
+   */
+  return {
+    primary: `${aircraft.callsign}\n${altitude}${altitude && trend ? " " : ""}`,
+    trend,
+    secondary: `${speed && (trend || altitude) ? " " : ""}${speed}`,
+  };
 }
 
 function toFeatures(
@@ -110,7 +131,7 @@ function toFeatures(
           properties: {
             id: target.id,
             callsign: target.callsign,
-            label: dataBlock(target),
+            ...dataBlock(target),
             // Stationary targets have no meaningful track; pointing them north
             // would assert a heading the aircraft is not reporting.
             track: target.trackDeg ?? 0,

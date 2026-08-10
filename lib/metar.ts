@@ -11,7 +11,7 @@
  *
  * What is left is the handful of things NOAA does not give us: a ceiling, a
  * category when the station reports too little for one, and which runway the
- * wind favours.
+ * wind favors.
  */
 
 export type FlightCategory = "VFR" | "MVFR" | "IFR" | "LIFR" | "UNKNOWN";
@@ -212,7 +212,7 @@ export interface RunwayEnd {
 }
 
 export interface RunwayWind {
-  /** The runway end the wind favours: "30". */
+  /** The runway end the wind favors: "30". */
   ident: string;
   /** Positive is a headwind; negative means every option has a tailwind. */
   headwindKt: number;
@@ -229,7 +229,7 @@ function angleBetween(a: number, b: number): number {
 }
 
 /**
- * Which runway end the wind favours, and by how much.
+ * Which runway end the wind favors, and by how much.
  *
  * Both inputs are degrees true and stay that way. METAR wind is true-referenced
  * while a tower reads wind magnetic, so mixing the two sources without
@@ -237,7 +237,7 @@ function angleBetween(a: number, b: number): number {
  * over 20 in parts of the country. These headings come from the runway table,
  * which is also true, so the comparison is sound.
  *
- * Returns null for calm or variable wind, where no runway is favoured and
+ * Returns null for calm or variable wind, where no runway is favored and
  * asserting one would be invention.
  */
 export function favoredRunway(

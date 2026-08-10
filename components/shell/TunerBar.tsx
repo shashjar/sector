@@ -17,7 +17,7 @@ export function TunerBar({ tuner }: { tuner: TunerState }) {
       {tuner.feed ? <Transport tuner={tuner} /> : <Idle />}
 
       <p className="shrink-0 text-[0.7rem] leading-tight text-text-faint">
-        Training and entertainment only — not for operational use. Audio via{" "}
+        Audio via{" "}
         <a
           href="https://www.liveatc.net"
           target="_blank"

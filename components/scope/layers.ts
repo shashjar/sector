@@ -235,7 +235,17 @@ export const trafficLabelLayer: LayerProps = {
   source: TRAFFIC_SOURCE,
   minzoom: 9,
   layout: {
-    "text-field": ["get", "label"],
+    // Three sections rather than one string, so the climb/descent arrow can be
+    // scaled up on its own without inflating the digits it sits between.
+    "text-field": [
+      "format",
+      ["get", "primary"],
+      {},
+      ["get", "trend"],
+      { "font-scale": 1.45 },
+      ["get", "secondary"],
+      {},
+    ],
     "text-font": ["Noto Sans Bold"],
     "text-size": 10,
     "text-offset": [1.1, 0],

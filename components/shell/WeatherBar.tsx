@@ -144,13 +144,13 @@ function Conditions({
 
       <Field label="Wind">{wind(observation)}</Field>
       <Field label="Vis">
-        {observation.visibilitySm !== null ? `${observation.visibilitySm} sm` : "—"}
+        {observation.visibilitySm !== null ? `${observation.visibilitySm} SM` : "—"}
       </Field>
       <Field label="Ceil">{ceiling(observation)}</Field>
 
       {favored ? (
         <span className="flex items-baseline gap-1.5 whitespace-nowrap">
-          <span className="label">Favours</span>
+          <span className="label">Favors</span>
           <span className="tnum text-[0.82rem] text-text">RWY {favored.ident}</span>
           <span className="text-[0.78rem] text-text-dim">{runwayAdvice(favored)}</span>
         </span>
