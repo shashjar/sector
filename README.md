@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sector
 
-## Getting Started
+Sector is an application that provides airspace, live traffic, radio frequency, and weather information on one map. It's a tool built for pilots, controllers, flight instructors, and aviation enthusiasts.
 
-First, run the development server:
+---
+
+## The problem
+
+Aviation information is spread across many different sources, e.g. FlightAware for live traffic, LiveATC for the radio, and aviationweather.gov for METARs. Additionally, student pilots can experience difficulty parsing all that information.
+
+## The insight
+
+General speech models mangle ATC audio, and they fail hardest on exactly the token that matters. Callsigns are rare, spelled-out, phonetic sequences delivered fast over a compressed channel.
+
+**But the callsign isn't unknown. It's on screen.** ADS-B tells you exactly which aircraft are near the field right now. The airport database gives you the runways. Every one of those is a hard constraint on what a controller or pilot could possibly be saying.
+
+## How it works
+
+**Audio** arrives as an MP3 stream. An `AudioWorklet` splits the continuous feed into individual transmissions and passes the audio through to the speakers unchanged, so you still hear the frequency while it is being segmented.
+
+**Transcription** is deliberately unassisted — the speech model gets audio and nothing else, no vocabulary hints.
+
+**Grounding** takes that text plus the aircraft actually in range and returns a typed transmission: speaker, callsign, corrected text, and structured instructions. Whatever callsign it returns is then checked against the candidate set server-side. Anything outside the set is rejected and the card renders as *Unmatched*.
+
+**Traffic** polls ADS-B for the viewport and dead-reckons positions between polls, so targets glide instead of teleporting.
+
+**Weather** comes from NOAA already decoded — no METAR parser — and is shown against runway alignment, because "favors runway 30" beats `30011KT` for anyone not already fluent.
+
+## Running it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Needs `AI_GATEWAY_API_KEY` in `.env.local` for transcription and grounding. Everything else — traffic, weather, charts, audio — works without a key.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm test          # vitest
+npm run lint
+npm run build
+npm run build:airspace   # regenerate airport/runway data from OurAirports
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Models are swappable by environment variable through the AI Gateway, since one key reaches every provider:
 
-## Learn More
+```
+TRANSCRIBE_MODEL=openai/gpt-4o-transcribe
+GROUND_MODEL=anthropic/claude-haiku-4.5
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Layout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+app/api/          route handlers — stream proxy, traffic, weather, transcribe, ground
+components/scope/ the map, and the hooks that feed it
+components/shell/ weather bar, transcript panel, tuner bar
+lib/              domain logic, all of it unit-tested
+public/worklets/  the audio segmenter
+scripts/          airport data build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Stack
 
-## Deploy on Vercel
+Next.js 16 · React 19 · MapLibre GL · AI SDK 7 through Vercel AI Gateway · Turf · Tailwind · Vitest
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Data: [adsb.lol](https://adsb.lol) (ODbL) · [NOAA Aviation Weather Center](https://aviationweather.gov) · [OurAirports](https://ourairports.com) (public domain) · FAA Aeronautical Information Services · Esri ArcGIS Online · [LiveATC.net](https://liveatc.net)
