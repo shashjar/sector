@@ -17,13 +17,7 @@ import {
 
 /**
  * MapLibre validates layers at runtime and rejects invalid ones by firing an
- * error, not by throwing. A rejected layer simply never draws — which looks
- * exactly like a data problem, a zoom problem, or a colour that blends into the
- * basemap, and costs an hour to tell apart.
- *
- * This ran the real definitions through the same validator the runtime uses.
- * It exists because a nested zoom expression once shipped past both TypeScript
- * and the production build, and the only symptom was an empty map.
+ * error, not by throwing. A rejected layer simply never draws.
  */
 function validate(layers: unknown[]) {
   const style = {
@@ -39,10 +33,6 @@ function validate(layers: unknown[]) {
   return validateStyleMin(style).map((error: { message: string }) => error.message);
 }
 
-/**
- * `LayerProps` is a union that includes custom WebGL layers, which have no
- * `layout`. Narrowing here keeps the assertions readable.
- */
 const layoutOf = (layer: LayerProps): Record<string, unknown> | undefined =>
   (layer as { layout?: Record<string, unknown> }).layout;
 
@@ -59,16 +49,12 @@ describe("scope layers", () => {
   });
 
   it("accepts the traffic layers, including the formatted data block", () => {
-    // The data block is a "format" expression so the climb/descent arrow can be
-    // scaled on its own. An invalid one would not throw — the labels would just
-    // stop drawing, and every target would silently lose its readout.
     expect(validate([trafficLayer, trafficLabelLayer])).toEqual([]);
   });
 
   it("scales the vertical trend arrow above the digits beside it", () => {
     const field = layoutOf(trafficLabelLayer)?.["text-field"] as unknown[];
     expect(field[0]).toBe("format");
-    // The arrow's section carries the only font-scale in the block.
     expect(field).toContainEqual({ "font-scale": expect.any(Number) });
     const scale = field.find(
       (section): section is { "font-scale": number } =>
@@ -87,9 +73,6 @@ describe("scope layers", () => {
   });
 
   it("rejects a zoom expression nested inside arithmetic", () => {
-    // The exact mistake this suite exists to catch: MapLibre requires "zoom" to
-    // be the outermost expression, so scaling a zoom-driven value by a constant
-    // is invalid however reasonable it looks.
     const errors = validate([
       {
         id: "nested-zoom",

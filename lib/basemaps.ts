@@ -5,29 +5,18 @@ import type { StyleSpecification } from "maplibre-gl";
  *
  * All three raster sources happen to share the ArcGIS fused-map-cache
  * convention — `/tile/{z}/{y}/{x}` in Web Mercator at 256px, note the row
- * before the column, reversed from the usual XYZ ordering. That is why
- * supporting three basemaps is three entries in a table rather than three
- * integrations: none needs a key, a signup, or a provider SDK.
+ * before the column, reversed from the usual XYZ ordering.
  */
 export type BasemapId = "sectional" | "satellite" | "street";
 
 export interface Basemap {
   id: BasemapId;
   label: string;
-  /** Shown in the switcher; says what the mode is *for*, not what it is. */
   hint: string;
   tiles: string;
   minZoom?: number;
   maxZoom?: number;
   attribution?: string;
-  /**
-   * How far the basemap is pushed back so overlaid data stays readable.
-   *
-   * Implemented as opacity over the void ground plus desaturation, rather than
-   * a separate scrim layer — the raster paint properties are GPU-native and one
-   * fewer layer to keep ordered. Brighter and busier basemaps get pushed back
-   * harder: a street map is nearly white and would swallow amber chevrons whole.
-   */
   dim: { opacity: number; saturation: number };
   /**
    * True when the basemap already draws runway geometry itself.
@@ -35,7 +24,6 @@ export interface Basemap {
    * Scoped to runways deliberately. A sectional draws runways, so ours would
    * double-image on top of them — but it knows nothing about current weather or
    * which fields have a live ATC feed, so the airport dots stay in every mode.
-   * They are not a duplicate symbol; they are state the chart cannot carry.
    */
   drawsOwnRunways: boolean;
 }
@@ -85,17 +73,8 @@ export const BASEMAPS: Record<BasemapId, Basemap> = {
 
 /** Ordered from the aviation reference outward to general-purpose maps. */
 export const BASEMAP_ORDER: BasemapId[] = ["sectional", "satellite", "street"];
-
-/**
- * Sectional is the opening view, and the one the product is built around.
- *
- * It is the map pilots actually navigate by, and the only mode carrying
- * airspace — the context that makes a controller's instructions legible.
- * Satellite and street are alternates for orientation, not peers.
- */
 export const DEFAULT_BASEMAP: BasemapId = "sectional";
 
-/** Matches `--scope-void`. Duplicated here because a style spec takes literals. */
 const VOID = "#05080b";
 
 export function isBasemapId(value: string): value is BasemapId {
@@ -104,17 +83,10 @@ export function isBasemapId(value: string): value is BasemapId {
 
 /**
  * Build the MapLibre style for a basemap.
- *
- * The ground layer is always painted, even under an opaque raster: it is what
- * the dimmed basemap composites against, and it is what shows through when
- * tiles are missing. That single decision is why panning a sectional past the
- * US border degrades to bare ground on its own rather than to grey squares.
  */
 export function buildStyle(basemap: Basemap): StyleSpecification {
   const style: StyleSpecification = {
     version: 8,
-    // Self-hosted; MapLibre renders no text at all without this. See
-    // public/fonts/README.md for why these files exist and what is in them.
     glyphs: "/fonts/{fontstack}/{range}.pbf",
     sources: {},
     layers: [

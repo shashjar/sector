@@ -2,36 +2,11 @@ import { findFeed } from "@/lib/feeds";
 
 /**
  * Proxy a LiveATC feed.
- *
- * Three reasons this cannot be a direct browser connection:
- *
- *   - LiveATC serves the audio over plain HTTP. Sector is HTTPS, and a browser
- *     blocks mixed content, so the audio would simply never play.
- *   - The stream host sets no CORS headers.
- *   - We need a copy of the audio server-side for segmentation. Teeing
- *     it here means the browser and the transcription pipeline share one
- *     upstream connection instead of opening two.
- *
- * The mount is looked up in the curated catalog rather than passed through, so
- * this is not an open proxy for arbitrary URLs.
  */
 
 const UPSTREAM = "http://d.liveatc.net";
+const USER_AGENT = "Sector/0.1 (non-commercial personal project; +https://sector-sandy.vercel.app)";
 
-/**
- * Identify the application honestly.
- *
- * LiveATC's terms prohibit disguising the origin of a connection, so this says
- * what it is rather than impersonating a browser.
- */
-const USER_AGENT =
-  "Sector/0.1 (non-commercial personal project; +https://sector-sandy.vercel.app)";
-
-/**
- * Streams run until the client leaves, but a serverless function cannot. When
- * the platform cuts this off the client reconnects — which it must handle
- * anyway, since volunteer receivers drop out on their own schedule.
- */
 export const maxDuration = 300;
 
 export async function GET(

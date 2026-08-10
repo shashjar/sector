@@ -146,12 +146,6 @@ ${transcript}
       abortSignal: request.signal,
     });
 
-    /*
-     * The guard runs here rather than in the client, so there is exactly one
-     * place a callsign can enter the app. Anything outside the candidate set is
-     * nulled and the confidence forced to zero — the model's certainty about an
-     * aircraft that is not on frequency is not information.
-     */
     const transmissions = object.transmissions.map((transmission) => {
       const callsign = validateCallsign(transmission.callsign, candidates);
       const rejected = transmission.callsign !== null && callsign === null;
@@ -159,9 +153,6 @@ ${transcript}
         ...transmission,
         callsign,
         confidence: callsign === null ? 0 : transmission.confidence,
-        // Surfaced so the card can say "heard a callsign we do not track"
-        // rather than silently showing nothing — the common cause is an
-        // aircraft without ADS-B Out, which is most of flight training.
         rejectedCallsign: rejected ? transmission.callsign : null,
       };
     });

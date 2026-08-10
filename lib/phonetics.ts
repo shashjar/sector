@@ -2,15 +2,7 @@
  * How a callsign is written versus how it is said.
  *
  * This is the translation layer the whole grounding step rests on. ADS-B gives
- * us `N5432L` and `UAL1334`; a controller never says either of those. They say
- * "november five four three two lima", or more often just "thirty-two lima",
- * and "United thirteen thirty-four". Matching a transcript against raw
- * registrations would never hit, so every candidate is expanded into the forms
- * it might actually be spoken as.
- *
- * A lookup table rather than a model: the ICAO alphabet and airline telephony
- * names are a dictionary, not a judgement, and a model asked to expand them
- * would occasionally invent one.
+ * us `N5432L` and `UAL1334`; a controller never says either of those.
  */
 
 /** ICAO spelling alphabet. */
@@ -58,10 +50,6 @@ const DIGITS: Record<string, string> = {
 
 /**
  * Radio-specific digit pronunciations.
- *
- * "niner" exists so nine is not confused with the German "nein" over a noisy
- * channel; "tree" and "fife" drop consonants that clip badly on AM. Controllers
- * use them inconsistently, so both forms are offered as candidates.
  */
 const RADIO_DIGITS: Record<string, string> = {
   "3": "tree",
@@ -120,9 +108,6 @@ export function spellOut(text: string, radioDigits = false): string {
 /**
  * A flight number as controllers group it: 1334 becomes "thirteen thirty-four",
  * 2058 "twenty fifty-eight", 679 "six seventy-nine".
- *
- * Grouping is the common form on frequency, but not universal — the
- * digit-by-digit form is offered alongside rather than instead.
  */
 export function groupNumber(digits: string): string | null {
   if (!/^\d+$/.test(digits)) return null;
@@ -148,10 +133,6 @@ export function groupNumber(digits: string): string | null {
 
 /**
  * Airline telephony names — what an operator is called on the radio.
- *
- * Rarely the company name: American Eagle's regional carrier Envoy answers to
- * "Envoy", Republic to "Brickyard", British Airways to "Speedbird". Getting
- * these wrong means never matching an airliner.
  */
 const TELEPHONY: Record<string, string> = {
   AAL: "American",
@@ -200,12 +181,6 @@ const TELEPHONY: Record<string, string> = {
 
 /**
  * Manufacturer names for the ICAO type designators seen at a training field.
- *
- * ADS-B reports the type as `C172`, and a controller says "Cessna". Without
- * this the abbreviated form comes out as "c one seven two three two lima",
- * which is not a thing anyone says — so an unrecognised type produces no
- * type-prefixed form at all rather than a wrong one. The designator itself is
- * still shown to the model separately, so nothing is lost by leaving it out.
  */
 const TYPE_NAMES: Record<string, string> = {
   AA5: "grumman",
@@ -251,9 +226,6 @@ const TYPE_NAMES: Record<string, string> = {
 
 /**
  * What a controller would call this type, or null if we cannot say.
- *
- * A name passed straight through ("Cessna") is used as given; a designator is
- * looked up; anything else is dropped.
  */
 function typeSpokenAs(aircraftType: string): string | null {
   const raw = aircraftType.trim().toUpperCase();
@@ -336,8 +308,7 @@ export function spokenForms(callsign: string, aircraftType?: string | null): str
 }
 
 /**
- * How a runway is said. "28R" is "two eight right"; controllers also say
- * "twenty-eight right" informally, so both are offered.
+ * How a runway is said. "28R" is "two eight right".
  */
 export function runwaySpokenForms(designator: string): string[] {
   const raw = designator.trim().toUpperCase();

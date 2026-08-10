@@ -6,10 +6,6 @@ import type { TunerState } from "@/components/scope/useTuner";
 /**
  * Bottom region. The transport for the tuned feed, and it persists across
  * panning so moving the scope never drops audio.
- *
- * It also carries attribution and the operational-use disclaimer. Those live
- * here rather than in a footer on purpose: they belong next to the audio they
- * describe, and this app has no footer to bury them in.
  */
 export function TunerBar({ tuner }: { tuner: TunerState }) {
   return (
@@ -42,15 +38,6 @@ function Idle() {
   );
 }
 
-/**
- * Four states, and they are genuinely different things.
- *
- * "Live" only means audio is arriving; an idle tower at two in the morning is
- * live and silent, and that must not look like a fault. "Offline" is a fact
- * about the receiver — volunteer-run, frequently down — while "reconnecting" is
- * a fact about us. Collapsing them into one error would leave a user unable to
- * tell whether waiting would help.
- */
 const STATE_COPY: Record<
   TunerState["status"],
   { text: string; dot: string; tone: string }

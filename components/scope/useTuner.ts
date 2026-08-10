@@ -7,7 +7,7 @@ import type { Feed } from "@/lib/feeds";
 export type TunerStatus =
   | "idle"
   | "connecting"
-  /** Audio is arriving. Note this says nothing about anyone talking. */
+  /** Audio is arriving. */
   | "live"
   /** The receiver is listed but not currently serving. */
   | "offline"
@@ -16,10 +16,6 @@ export type TunerStatus =
 
 /**
  * Delay before reconnecting, growing with consecutive failures.
- *
- * A feed that is genuinely down should not be hammered, but a stream cut short
- * by the platform's function limit should come back promptly — that one is
- * expected and frequent, so the first retry is fast.
  */
 const RETRY_DELAYS_MS = [750, 2000, 5000, 15000];
 
@@ -34,8 +30,7 @@ export interface TunerState {
    * The element currently playing, so the segmenter can tap it.
    *
    * State rather than a ref because it is replaced on every reconnect, and the
-   * audio graph has to be rebuilt against the new one — a ref would change
-   * without telling anybody.
+   * audio graph has to be rebuilt against the new one.
    */
   audioEl: HTMLAudioElement | null;
   tune: (feed: Feed) => void;
@@ -44,11 +39,7 @@ export interface TunerState {
 }
 
 /**
- * Play a LiveATC feed, and be honest about what is happening to it.
- *
- * The audio element is created imperatively rather than rendered, because the
- * transport outlives any one component: tuning survives panning the map, and
- * reconnecting must not depend on something staying mounted.
+ * Play a LiveATC feed.
  */
 export function useTuner(): TunerState {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -87,11 +78,6 @@ export function useTuner(): TunerState {
 
   /**
    * Tell an offline receiver apart from a dropped connection.
-   *
-   * The audio element reports both as a bare "error" with no status, so the
-   * only way to know is to ask the route directly. It matters: "this feed is
-   * down" is a fact about the world, while "we lost the connection" is a fact
-   * about us, and only one of them is worth retrying hard.
    */
   const classifyFailure = useCallback(async (mount: string) => {
     try {
@@ -110,10 +96,6 @@ export function useTuner(): TunerState {
       currentMount.current = target.mount;
 
       const audio = new Audio(`/api/stream/${target.mount}`);
-      // Attached rather than detached. A detached element plays perfectly well,
-      // but it is invisible to devtools and to the browser's media controls,
-      // which makes "is audio actually arriving" impossible to answer without
-      // guessing. Hidden, so it contributes no UI of its own.
       audio.hidden = true;
       audio.dataset.feed = target.mount;
       document.body.append(audio);
@@ -126,8 +108,7 @@ export function useTuner(): TunerState {
         setStatus("live");
       });
 
-      // Buffer starvation mid-stream. Not a failure yet — the element recovers
-      // on its own more often than not.
+      // Buffer starvation mid-stream. The element may recover on its own.
       audio.addEventListener("waiting", () => setStatus("connecting"));
 
       const handleLoss = () => {
@@ -143,14 +124,9 @@ export function useTuner(): TunerState {
       };
 
       audio.addEventListener("error", handleLoss);
-      // A stream that "ends" has not finished — it was cut, usually by the
-      // serverless function reaching its limit. Same handling as an error.
       audio.addEventListener("ended", handleLoss);
 
       void audio.play().catch(() => {
-        // Autoplay refusal. Tuning is always user-initiated so this is rare,
-        // but surfacing it as dropped gives the user a retry rather than
-        // silence with no explanation.
         if (currentMount.current === target.mount) setStatus("dropped");
       });
     },
@@ -169,8 +145,6 @@ export function useTuner(): TunerState {
       setLiveLabel(null);
       connect(target);
 
-      // The feed's own name for itself comes back as a header, so it needs a
-      // separate request. Cosmetic, and must never block audio.
       void fetch(`/api/stream/${target.mount}`)
         .then((response) => {
           void response.body?.cancel();

@@ -10,16 +10,10 @@ import type {
 import type { TunerState } from "@/components/scope/useTuner";
 import { useNow } from "@/components/useNow";
 
-/** Distance from the bottom still counted as "following the feed". */
 const STICK_THRESHOLD_PX = 48;
 
 /**
- * Right region. One card per transmission, oldest at the top.
- *
- * Cards rather than a scrolling transcript because a transmission is the unit
- * everything downstream attaches to: the aircraft it was addressed to, the
- * instruction it carried, the eight seconds you want to hear again. A wall of
- * text has nowhere to hang any of that.
+ * Right region of the app. One card per transmission, oldest at the top.
  */
 export function TranscriptPanel({
   tuner,
@@ -36,24 +30,9 @@ export function TranscriptPanel({
 }) {
   const { transmissions, level, capturing, error } = segmenter;
 
-  /**
-   * One element for the whole list rather than one per card.
-   *
-   * That is what makes playback exclusive: starting a clip necessarily stops
-   * whichever was playing, because there is only ever one thing to stop. Two
-   * transmissions talking over each other is the one thing this panel exists
-   * to prevent.
-   */
   const playerRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
 
-  /**
-   * Nothing counts as playing once its clip has left the list.
-   *
-   * Derived rather than corrected after the fact: a retune drops every clip,
-   * and the card that was showing "Stop" is gone with it. Only the element
-   * itself needs telling, below.
-   */
   const playing =
     playingId && transmissions.some((transmission) => transmission.id === playingId)
       ? playingId
@@ -88,8 +67,6 @@ export function TranscriptPanel({
     return () => player.removeEventListener("ended", clear);
   }, []);
 
-  // A retune revokes the object URLs, so without this the element would keep
-  // playing a blob nobody can see, on a frequency the user has left.
   useEffect(() => {
     if (playingId && !playing) playerRef.current?.pause();
   }, [playingId, playing]);
@@ -111,8 +88,6 @@ export function TranscriptPanel({
     stick.current = distance <= STICK_THRESHOLD_PX;
   }, []);
 
-  // Layout effect so the scroll lands in the same frame the card appears in,
-  // rather than showing the old position for a beat first.
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list || !stick.current) return;
@@ -129,11 +104,6 @@ export function TranscriptPanel({
         </span>
       </div>
 
-      {/*
-        * The list outranks the empty states, including "nothing tuned".
-        * Stopping keeps what was already said, and hiding it behind a prompt to
-        * tune something would throw away the reason you stopped: to read it.
-        */}
       {transmissions.length > 0 ? (
         <ol
           ref={listRef}
@@ -183,10 +153,6 @@ function Empty({ title, body }: { title: string; body: string }) {
 
 /**
  * A live level meter.
- *
- * Present because "live" and "silent" are indistinguishable otherwise: a tuned
- * frequency with nobody talking looks exactly like a broken one. The meter is
- * the difference between waiting and wondering.
  */
 function LevelMeter({ level, capturing }: { level: number; capturing: boolean }) {
   return (
@@ -203,14 +169,6 @@ function LevelMeter({ level, capturing }: { level: number; capturing: boolean })
 
 /**
  * Transcription on or off.
- *
- * It sits in the panel header rather than in a menu because it is the one
- * control in the app with a running cost — every transmission that arrives
- * while it is on is a speech call and a grounding call — and a cost you are
- * paying should be in front of you.
- *
- * The decision applies to what arrives next. Clips already on screen keep
- * whatever they have, and turning it back on does not process the backlog.
  */
 function TranscribeSwitch({
   value,
@@ -261,8 +219,7 @@ function TransmissionCard({
   playing: boolean;
   onToggle: (transmission: Transmission) => void;
 }) {
-  // Ticks every second. Every card shares one clock, so this costs one timer
-  // for the whole list rather than one each.
+  // Ticks every second. Every card shares one clock.
   const now = useNow(1000);
   const ageSec =
     now === 0 ? 0 : Math.max(0, Math.round((now - transmission.receivedAt) / 1000));
@@ -313,21 +270,9 @@ function formatAge(seconds: number): string {
 }
 
 /**
- * The transcript, or an honest account of why there isn't one.
- *
- * A failure prints the reason rather than a generic apology. The failures that
- * actually happen here are configuration — no API key, no billing, a model the
- * account cannot reach — and every one of them is fixed by reading the message.
- *
- * When grounding succeeds the card shows the corrected transmission and the
- * instructions read out of it. The raw speech output is not shown: it is the
- * same sentence with the callsign wrong, and printing both leaves the reader to
- * work out which one to believe.
+ * The transcript, or an account of why there isn't one.
  */
 function Transcript({ entry }: { entry: TranscriptEntry | undefined }) {
-  // Recorded with transcription switched off. The switch in the header already
-  // says why there is no text, so the card stays quiet rather than repeating it
-  // once per transmission.
   if (entry?.status === "skipped") return null;
 
   if (!entry || entry.status === "transcribing") {
@@ -341,21 +286,14 @@ function Transcript({ entry }: { entry: TranscriptEntry | undefined }) {
   }
 
   if (entry.status === "grounding") {
-    // The raw text is deliberately not shown here either. It would appear for a
-    // second and then be replaced by a corrected version of itself, which reads
-    // as the display changing its mind.
     return <Note>Matching to traffic…</Note>;
   }
 
   if (!entry.raw) {
-    // The speech model returned nothing. Usually a clip that is squelch and
-    // breath rather than speech — worth saying so instead of an empty card.
     return <Note>No speech recognised</Note>;
   }
 
   if (entry.error) {
-    // Transcribed but not grounded. Show what was heard and say plainly that
-    // it was not checked against anything.
     return (
       <>
         <p className="mt-1.5 text-[0.82rem] leading-snug text-text">{entry.raw}</p>
@@ -365,17 +303,12 @@ function Transcript({ entry }: { entry: TranscriptEntry | undefined }) {
   }
 
   if (!entry.grounded) {
-    // No candidate set — nothing was tuned to a field we track, or ADS-B has
-    // not returned yet. The text stands on its own, unverified.
     return (
       <p className="mt-1.5 text-[0.82rem] leading-snug text-text">{entry.raw}</p>
     );
   }
 
   if (entry.grounded.length === 0) {
-    // The clip transcribed to something, and the grounding step decided it was
-    // not a radio transmission at all. Speech models invent fluent sentences
-    // from noise, and this is where those get thrown away.
     return <Note>Not a transmission</Note>;
   }
 

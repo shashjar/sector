@@ -42,14 +42,6 @@ interface WorkletMessage {
 
 /**
  * Split the tuned feed into individual transmissions.
- *
- * This runs in the browser, on the audio already playing, rather than on the
- * server against a tee'd copy. The server-side version needs a process that
- * outlives a serverless function, which is a real architecture and not one that
- * fits here. The cost of doing it client-side is that transcription only
- * happens while someone is listening, and two listeners duplicate the work —
- * both of which are exactly the problems shared server-side ingest solves, and
- * neither of which a single listener has.
  */
 export function useSegmenter(
   audio: HTMLAudioElement | null,
@@ -71,15 +63,6 @@ export function useSegmenter(
 
     /*
      * Only a change of frequency invalidates what is on screen.
-     *
-     * Stopping does not: those transmissions are still the ones you were just
-     * listening to, and resuming the same feed continues the same conversation.
-     * Neither does reconnecting — a stream cut by the platform's function limit
-     * comes back on a new audio element every few minutes, and wiping the panel
-     * each time would make a busy tower unreadable.
-     *
-     * Revoking rather than dropping matters: an object URL pins its blob in
-     * memory until it is released.
      */
     if (heldMount.current !== null && heldMount.current !== mount) {
       for (const url of urlsRef.current) URL.revokeObjectURL(url);
@@ -130,9 +113,6 @@ export function useSegmenter(
           counter.current += 1;
 
           setTransmissions((previous) => {
-            // Appended, so the list reads in the order things were said —
-            // oldest at the top, newest arriving at the bottom, the way a
-            // conversation does.
             const next = [
               ...previous,
               {
@@ -144,9 +124,6 @@ export function useSegmenter(
                 reason: message.reason ?? "silence",
               },
             ];
-            // Revoke what falls off the front. Object URLs hold their blob in
-            // memory until released, and an hour on a busy frequency is
-            // hundreds of clips.
             const overflow = Math.max(0, next.length - MAX_TRANSMISSIONS);
             for (const dropped of next.slice(0, overflow)) {
               URL.revokeObjectURL(dropped.audioUrl);
@@ -156,8 +133,6 @@ export function useSegmenter(
           });
         };
 
-        // Browsers start a context suspended unless it was created inside a
-        // gesture. Tuning is a click, but a reconnect is not.
         if (context.state === "suspended") await context.resume();
       } catch (cause) {
         if (!cancelled) {
@@ -179,7 +154,6 @@ export function useSegmenter(
     };
   }, [audio, mount]);
 
-  // Nothing else releases these once the app goes away.
   useEffect(() => {
     const urls = urlsRef;
     return () => {

@@ -18,12 +18,6 @@ interface AirportPickerProps {
 
 /**
  * What you can hear at an airport, and what is published there.
- *
- * These are two different lists and the panel keeps them apart on purpose.
- * LiveATC publishes receivers, not frequencies — one mount often carries tower
- * and ground together — so presenting a published frequency as something you
- * can click would promise audio that does not exist for it. Feeds are tunable;
- * frequencies are reference.
  */
 export function AirportPicker({
   airport,
@@ -33,8 +27,6 @@ export function AirportPicker({
   onClose,
 }: AirportPickerProps) {
   const feeds = feedsFor(airport.ident);
-  // Anything outside the civil VHF air band cannot be tuned on an aircraft
-  // radio, and the source data contains a few. See lib/feeds.ts.
   const tunable = frequencies.filter((frequency) => isAirbandFrequency(frequency.mhz));
 
   return (
@@ -83,8 +75,7 @@ export function AirportPicker({
           </ul>
         ) : (
           <p className="text-[0.78rem] leading-snug text-text-dim">
-            No receiver here. Feeds are volunteer-run, so most fields have none —
-            look for airports carrying an amber dot.
+            No receiver here. Look for airports carrying an amber dot.
           </p>
         )}
       </div>

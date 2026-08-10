@@ -25,8 +25,7 @@ export const CLIP_SAMPLE_RATE = 16000;
  * Nearest-neighbour resampling.
  *
  * Adequate here specifically because the content is band-limited voice from a
- * narrow AM channel — there is no high-frequency content to alias. It would be
- * the wrong choice for music.
+ * narrow AM channel — there is no high-frequency content to alias.
  */
 function resample(samples: Float32Array, from: number, to: number): Float32Array {
   if (from === to) return samples;

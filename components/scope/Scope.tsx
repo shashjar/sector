@@ -1,19 +1,5 @@
 "use client";
 
-/*
- * maplibre-gl is pinned to an exact 5.x in package.json. Do not float it to 6.
- *
- * react-map-gl 8.1.2 — the current release — declares `maplibre-gl >=4.0.0`,
- * which is wrong: against 6.x its <Source> and <Layer> children silently never
- * create anything and event props such as onLoad never fire. Nothing throws and
- * nothing logs. The basemap still renders, because that comes from the style
- * object passed at construction, so the map looks like it is working while
- * every layer of our own is missing.
- *
- * Diagnosed by watching the network: with 6.x the app never requested
- * airports.geojson at all. On 5.24.0 the sources, layers, and glyph ranges all
- * load. Revisit when react-map-gl declares real support for 6.
- */
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import type { ErrorEvent, Map as MapLibreMap } from "maplibre-gl";
@@ -56,10 +42,6 @@ import type { TrafficState, TrafficStatus } from "./useTraffic";
 /**
  * Number of failed basemap tiles before we tell the user the ground is
  * missing rather than letting them wonder.
- *
- * A single failure is a flaky request and self-corrects on retry; a viewport
- * genuinely outside coverage fails every tile it asks for, which at any
- * reasonable window size is a lot more than four.
  */
 const COVERAGE_GAP_THRESHOLD = 4;
 
@@ -91,14 +73,7 @@ export function Scope({ mapRef, onReady, onSelectAirport, traffic }: ScopeProps)
     [resetCoverage],
   );
 
-  /**
-   * MapLibre only logs errors to the console when nothing is listening, so
-   * handling them here serves two purposes: it drives the coverage notice, and
-   * it keeps a pan outside chart coverage from filling the console with 404s.
-   */
   const handleError = useCallback((event: ErrorEvent) => {
-    // MapLibre copies the failing source onto the event at runtime but does
-    // not declare it, so narrow rather than assume every error is a tile.
     const { sourceId } = event as ErrorEvent & { sourceId?: string };
 
     if (sourceId === "basemap") {
@@ -108,9 +83,7 @@ export function Scope({ mapRef, onReady, onSelectAirport, traffic }: ScopeProps)
     }
 
     // Anything that is not a basemap tile is a genuine fault — unparseable
-    // GeoJSON, a rejected layer, a missing glyph range. Attaching any error
-    // listener stops MapLibre logging these itself, so swallowing them here
-    // would make the map fail silently.
+    // GeoJSON, a rejected layer, a missing glyph range.
     console.error("[scope]", sourceId ? `source "${sourceId}":` : "", event.error ?? event);
   }, []);
 
@@ -119,7 +92,7 @@ export function Scope({ mapRef, onReady, onSelectAirport, traffic }: ScopeProps)
    *
    * Runs on load and again on every style change: switching basemap replaces
    * the whole style, and MapLibre discards registered images along with it. A
-   * symbol layer whose icon has gone missing renders nothing and says nothing.
+   * symbol layer whose icon has gone missing renders nothing.
    */
   const registerIcons = useCallback((event: { target: MapLibreMap }) => {
     const map = event.target;
@@ -133,11 +106,6 @@ export function Scope({ mapRef, onReady, onSelectAirport, traffic }: ScopeProps)
 
   /**
    * Selecting an airport.
-   *
-   * The hit target is the ring layer rather than the badge: the badge is a few
-   * pixels across and marks only the airports with feeds, while every airport
-   * has frequencies worth showing. Clicking bare map clears the selection,
-   * which is what makes the panel dismissible without hunting for a close box.
    */
   const handleClick = useCallback(
     (event: MapLayerMouseEvent) => {
@@ -162,8 +130,6 @@ export function Scope({ mapRef, onReady, onSelectAirport, traffic }: ScopeProps)
           zoom: DEFAULT_ZOOM,
         }}
         mapStyle={style}
-        // Attribution is added explicitly below so it can be compact; the
-        // default control renders expanded and crowds a small scope.
         attributionControl={false}
         ref={mapRef}
         onError={handleError}
@@ -172,23 +138,16 @@ export function Scope({ mapRef, onReady, onSelectAirport, traffic }: ScopeProps)
         interactiveLayerIds={[AIRPORT_LAYER]}
         onClick={handleClick}
         cursor="auto"
-        // Switching basemap swaps the whole style, which discards registered
-        // images along with it. Re-adding on styledata keeps targets drawn.
         onStyleData={registerIcons}
         style={{ width: "100%", height: "100%" }}
       >
         {/*
-          Runways are suppressed on the sectional, which already draws them —
-          ours would double-image on top. Airport rings stay in every mode:
-          they are not a duplicate symbol, they carry state the chart cannot.
+          Runways are suppressed on the sectional, which already draws them.
         */}
         <Source id={RUNWAY_SOURCE} type="geojson" data="/data/runways.geojson">
           <Layer {...runwayLayer(!basemap.drawsOwnRunways)} />
         </Source>
 
-        {/* promoteId makes each airport's identifier usable as a feature id,
-            which is what lets weather be applied as feature state instead of
-            rewriting a megabyte of GeoJSON every time an observation lands. */}
         <Source
           id={AIRPORT_SOURCE}
           type="geojson"
@@ -201,8 +160,6 @@ export function Scope({ mapRef, onReady, onSelectAirport, traffic }: ScopeProps)
           <Layer {...feedBadgeLayer} />
         </Source>
 
-        {/* Traffic sits above the static airspace: it is what moves, and what
-            the eye should find first. */}
         <Source id={TRAFFIC_SOURCE} type="geojson" data={traffic.features}>
           <Layer {...trafficLayer} />
           <Layer {...trafficLabelLayer} />
@@ -213,7 +170,6 @@ export function Scope({ mapRef, onReady, onSelectAirport, traffic }: ScopeProps)
         <AttributionControl position="bottom-right" compact />
       </Map>
 
-      {/* Controls float over the map; the wrapper must not eat map gestures. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3">
         <div className="pointer-events-auto">
           {coverageGap ? (
@@ -249,10 +205,6 @@ export function Scope({ mapRef, onReady, onSelectAirport, traffic }: ScopeProps)
 
 /**
  * What the traffic feed is doing, when it is doing something other than working.
- *
- * Silence is not an option for any of these. An empty scope looks identical
- * whether the airspace is quiet, the query was declined, or the feed is down —
- * and those are three completely different things to a pilot.
  */
 function TrafficStatus({
   status,
@@ -262,8 +214,6 @@ function TrafficStatus({
   count: number;
 }) {
   if (status === "ok") {
-    // Needs its own ground. Bare text sits directly on a sectional and is
-    // illegible over dense areas — which is exactly where the count matters.
     return (
       <p className="mt-2 inline-block rounded border border-border bg-surface/90 px-2 py-1 font-mono text-[0.68rem] uppercase tracking-[0.1em] text-text-dim backdrop-blur-sm">
         {count} contact{count === 1 ? "" : "s"}

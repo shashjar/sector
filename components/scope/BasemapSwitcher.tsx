@@ -9,9 +9,6 @@ interface BasemapSwitcherProps {
 
 /**
  * Segmented control over the ground layers.
- *
- * Sits on the map rather than in the chrome because it changes what the map
- * is, and the effect needs to be visible in the same glance as the click.
  */
 export function BasemapSwitcher({ value, onChange }: BasemapSwitcherProps) {
   return (

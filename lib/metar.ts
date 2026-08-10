@@ -3,15 +3,7 @@
  *
  * NOAA's Aviation Weather Center publishes METARs already decoded — cloud
  * layers, wind, visibility, present weather, and usually the flight category
- * itself. So nothing here parses a METAR string. That is worth stating plainly
- * because the obvious move is to write a parser, or reach for one: the raw
- * observation is right there in the payload and the format is famously terse.
- * Both would be work spent re-deriving fields the upstream already computed,
- * with a new opportunity to disagree with it.
- *
- * What is left is the handful of things NOAA does not give us: a ceiling, a
- * category when the station reports too little for one, and which runway the
- * wind favors.
+ * itself.
  */
 
 export type FlightCategory = "VFR" | "MVFR" | "IFR" | "LIFR" | "UNKNOWN";
@@ -95,10 +87,6 @@ export function parseVisibility(value: number | string | null | undefined): numb
 
 /**
  * The ceiling: the lowest broken, overcast, or obscured layer.
- *
- * Scattered and few layers are explicitly not a ceiling, however low they sit —
- * a pilot can legally and practically climb through them. Getting this wrong in
- * the permissive direction would report a field as IFR when it is open above.
  */
 export function ceilingFrom(clouds: CloudLayer[]): number | null {
   const bases = clouds
@@ -111,14 +99,6 @@ export function ceilingFrom(clouds: CloudLayer[]): number | null {
 
 /**
  * Flight category from ceiling and visibility.
- *
- * The thresholds are regulatory, not a judgement call, which is exactly why no
- * model goes near this. Whichever of the two is worse decides the category — a
- * clear sky does not rescue a field sitting in half a mile of fog.
- *
- * A missing value means "not restricting", not "zero": most stations report no
- * cloud layers on a clear day, and treating that as a zero-foot ceiling would
- * paint every clear airport magenta.
  */
 export function categoryFrom(
   ceilingFt: number | null,
@@ -184,11 +164,6 @@ export function normalizeObservation(raw: RawMetar): Observation | null {
 
 /**
  * Reduce a batch to the latest observation per station.
- *
- * Necessary because the request has to carry an explicit `hours` window — the
- * API's default lookback silently drops any station whose last report is over
- * an hour old, which is exactly the small fields this app cares about. Asking
- * for a window returns *every* observation in it, several per station.
  */
 export function latestPerStation(raws: RawMetar[]): Observation[] {
   const latest = new Map<string, Observation>();
@@ -230,15 +205,6 @@ function angleBetween(a: number, b: number): number {
 
 /**
  * Which runway end the wind favors, and by how much.
- *
- * Both inputs are degrees true and stay that way. METAR wind is true-referenced
- * while a tower reads wind magnetic, so mixing the two sources without
- * converting is a real and easy mistake — 13 degrees of error in the Bay Area,
- * over 20 in parts of the country. These headings come from the runway table,
- * which is also true, so the comparison is sound.
- *
- * Returns null for calm or variable wind, where no runway is favored and
- * asserting one would be invention.
  */
 export function favoredRunway(
   windDirDeg: number | null,

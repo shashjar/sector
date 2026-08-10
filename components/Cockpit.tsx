@@ -65,13 +65,6 @@ export function Cockpit() {
   const [mapReady, setMapReady] = useState(false);
   const [selected, setSelected] = useState<SelectedAirport | null>(null);
   const [frequencies, setFrequencies] = useState<Frequency[]>([]);
-  /**
-   * Whether arriving clips get transcribed.
-   *
-   * On by default — it is the point of the app. Off is for leaving a frequency
-   * running in the background, where every transmission would otherwise cost
-   * two model calls to tell you about an aircraft you are not watching.
-   */
   const [transcribing, setTranscribing] = useState(true);
 
   const traffic = useTraffic(mapRef, mapReady);
@@ -79,13 +72,6 @@ export function Cockpit() {
   const tuner = useTuner();
   const segmenter = useSegmenter(tuner.audioEl, tuner.feed?.mount ?? null);
 
-  /**
-   * Everything about the tuned field the grounding step needs.
-   *
-   * A ref rather than state because it is read at the instant a clip arrives,
-   * not rendered — and re-rendering the cockpit every time an aircraft moves
-   * would be absurd.
-   */
   const tunedField = useRef<{
     ident: string;
     runways: { ident: string; headingTrue: number }[];
@@ -110,7 +96,6 @@ export function Cockpit() {
       tunedField.current = {
         ident: feedAirport,
         runways: runways.get(feedAirport) ?? [],
-        // Anything outside the civil VHF band cannot be what is being spoken.
         frequencies: (allFrequencies[feedAirport] ?? []).filter((frequency) =>
           isAirbandFrequency(frequency.mhz),
         ),
@@ -174,8 +159,6 @@ export function Cockpit() {
   const handleTune = useCallback(
     (feed: Feed) => {
       tuner.tune(feed);
-      // The panel has done its job. Closing it returns the scope, which is
-      // where the transmissions point.
       setSelected(null);
     },
     [tuner],

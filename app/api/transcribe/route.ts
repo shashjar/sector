@@ -5,18 +5,12 @@ import { transcribe } from "ai";
  *
  * Deliberately unassisted. The model gets the audio and nothing else — no
  * vocabulary hints, no list of callsigns, no mention that this is aviation
- * radio. Whisper and its relatives accept a prompt that biases decoding, and
- * using it here would quietly do a weak version of the grounding layer and make
- * the before-and-after meaningless.
- *
- * This is the "before". What it gets wrong — and it gets callsigns wrong
- * constantly — is the argument for everything in the next commit.
+ * radio.
  */
 
 /**
  * Clips are 16 kHz mono 16-bit PCM and capped at 25 seconds by the segmenter,
- * so roughly 800 KB at the limit. Anything materially larger did not come from
- * this app.
+ * so roughly 800 KB at the limit.
  */
 const MAX_BYTES = 2 * 1024 * 1024;
 

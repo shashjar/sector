@@ -1,23 +1,5 @@
 /**
  * LiveATC feeds, hand-curated.
- *
- * There is no feed directory API, and mount names are not derivable from the
- * airport identifier — KSQL Tower is `ksql_twr` while Oakland is plain `koak`
- * and Hayward is `khwd`. So this is a list, verified by connecting to each one
- * rather than guessed from a pattern.
- *
- * Note what a feed is and is not. LiveATC publishes *receivers*, not
- * frequencies: one mount often carries tower and ground together, and some scan
- * several positions. Presenting these as "pick a frequency" would be a lie
- * about what you are listening to, so the interface tunes a feed and shows the
- * field's published frequencies alongside as reference.
- *
- * A mount can be listed and still return 404: these are volunteer receivers and
- * they go offline. That is a normal state, not an error.
- *
- * Coverage is deliberately Bay Area plus a handful of major fields rather than
- * national. Every entry here was checked; a longer list assembled by guesswork
- * would mostly be dead links.
  */
 
 export interface Feed {
@@ -67,12 +49,6 @@ export const AIRPORTS_WITH_FEEDS = [...BY_AIRPORT.keys()];
 
 /**
  * The civil VHF air band.
- *
- * The airport frequency table carries entries outside it — KSQL lists NORCAL
- * Approach as 33.82, which is almost certainly a mangled 338.2, a military UHF
- * frequency. Whatever the cause, nothing below 118 or above 137 can be tuned on
- * an aircraft radio, and offering it would be offering something that does not
- * exist.
  */
 export const VHF_MIN_MHZ = 118;
 export const VHF_MAX_MHZ = 137;

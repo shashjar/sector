@@ -8,11 +8,6 @@ import type { Transmission } from "./useSegmenter";
 
 /**
  * How many clips to process at once.
- *
- * A busy tower can produce three transmissions in ten seconds, and firing every
- * request the instant a clip lands would put them in a race that finishes out
- * of order. Two at a time keeps the panel filling in roughly the order things
- * were said while still overlapping the network wait.
  */
 const CONCURRENCY = 2;
 
@@ -42,19 +37,15 @@ export interface GroundedTransmission {
   }[];
   /**
    * A callsign the model produced that we refused to accept.
-   *
-   * Almost always an aircraft with no ADS-B Out — which is most of flight
-   * training — so it is worth showing rather than silently dropping.
    */
   rejectedCallsign: string | null;
 }
 
 export interface TranscriptEntry {
   status: TranscriptStatus;
-  /** Raw model output, before grounding. Kept for the before/after comparison. */
+  /** Raw model output, before grounding. */
   raw?: string;
   grounded?: GroundedTransmission[];
-  /** Shown verbatim on failure — a misconfiguration should be visible. */
   error?: string;
 }
 
@@ -71,10 +62,7 @@ export interface TranscriptEntry {
  * spoken, and a set gathered ten seconds later is about a different sky.
  *
  * With `enabled` false a clip is recorded and nothing else — no transcription,
- * no grounding, no request of any kind. The decision is made once, when the
- * clip arrives, and it sticks: switching back on does not go back and process
- * the backlog, which would fire a burst of requests for audio the user had
- * already decided not to spend anything on.
+ * no grounding, no request of any kind.
  */
 export function useTranscripts(
   transmissions: Transmission[],
@@ -88,8 +76,6 @@ export function useTranscripts(
   const active = useRef(0);
   const candidatesRef = useRef(getCandidates);
 
-  // Declared before the effect below so the snapshot it takes is always the
-  // current one — effects run in declaration order.
   useEffect(() => {
     candidatesRef.current = getCandidates;
   });
@@ -107,8 +93,6 @@ export function useTranscripts(
         void (async () => {
           const { transmission, candidates } = job;
           try {
-            // The clip is already in memory behind its object URL; reading it
-            // back is cheaper than holding a second reference to every blob.
             const blob = await (await fetch(transmission.audioUrl)).blob();
             const response = await fetch("/api/transcribe", {
               method: "POST",
@@ -127,8 +111,6 @@ export function useTranscripts(
 
             const raw = payload.text.trim();
             if (raw === "") {
-              // The speech model heard nothing. Grounding a blank string would
-              // only invite the language model to invent something.
               update(transmission.id, { status: "done", raw, grounded: [] });
               return;
             }
@@ -174,12 +156,7 @@ export function useTranscripts(
 
     /*
      * Drop anything whose clip is gone — evicted off the end of the list, or
-     * cleared by a retune. Without this the map only grows, and an hour in it
-     * holds every transcript of a frequency nobody is listening to.
-     *
-     * A request already in flight when its clip disappears still writes its
-     * result back. That entry renders nowhere, and the next transmission
-     * prunes it.
+     * cleared by a retune.
      */
     const live = new Set(transmissions.map((transmission) => transmission.id));
     const stale = [...seen.current].filter((id) => !live.has(id));

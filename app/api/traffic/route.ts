@@ -2,33 +2,14 @@ import { MAX_QUERY_RADIUS_NM, normalizeResponse } from "@/lib/adsb";
 
 /**
  * Live traffic for a point and radius.
- *
- * A proxy rather than a direct browser call, for three reasons: adsb.lol sets
- * no CORS headers, the response shape is normalised here so the client never
- * sees upstream field names, and putting the upstream behind our own route
- * means swapping providers never touches the client.
- *
- * Deliberately uncached. Aircraft positions are stale within seconds, and a
- * cached traffic picture is worse than no traffic picture — it shows aircraft
- * where they are not.
  */
 
 const UPSTREAM = "https://api.adsb.lol/v2/point";
-
-/** Upstream is community-run; a slow response should fail rather than hang the poll. */
 const TIMEOUT_MS = 8000;
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
 
-  /**
-   * Missing params must be rejected before conversion.
-   *
-   * `Number(null)` is 0, and 0 is finite — so a bare `Number(params.get(...))`
-   * turns a request with no arguments at all into a valid query for latitude 0,
-   * longitude 0, which is open ocean off West Africa. It returns 200 and an
-   * empty list, and looks exactly like quiet airspace.
-   */
   const read = (name: string): number | null => {
     const raw = params.get(name);
     if (raw === null || raw.trim() === "") return null;

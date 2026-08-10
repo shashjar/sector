@@ -1,16 +1,12 @@
 /**
  * The target symbol.
  *
- * Drawn at runtime rather than shipped as a file. A chevron is a dozen lines of
- * canvas, and generating it means the colours come from the same place as the
- * rest of the scope instead of being baked into an asset nobody can grep for.
+ * Drawn at runtime rather than shipped as a file.
  *
  * The shape is the radar convention: a triangle with a notched tail, pointing
- * along the aircraft's track. It reads as directional at sizes where a plain
- * triangle looks like a smudge.
+ * along the aircraft's track.
  */
 
-/** Logical size in CSS pixels; the bitmap is drawn at twice this for retina. */
 const SIZE = 22;
 const SCALE = 2;
 
@@ -38,8 +34,6 @@ function drawChevron(fill: string, outline: string): ImageData {
   ctx.lineTo(-6, 7);
   ctx.closePath();
 
-  // Outline first and wider, so the symbol survives both a bright sectional and
-  // dark satellite imagery — the same reason the airport rings carry a halo.
   ctx.lineJoin = "round";
   ctx.strokeStyle = outline;
   ctx.lineWidth = 2.5;
@@ -54,13 +48,6 @@ function drawChevron(fill: string, outline: string): ImageData {
 export const TARGET_ICON = "target-chevron";
 export const TARGET_ICON_SELECTED = "target-chevron-selected";
 
-/**
- * Both target symbols.
- *
- * Two baked images rather than one recoloured at draw time: MapLibre can tint
- * an icon through `icon-color`, but only for signed-distance-field images, and
- * a true SDF for this shape is more machinery than two small bitmaps are worth.
- */
 export function buildTargetIcons(): ChevronImage[] {
   return [
     { id: TARGET_ICON, data: drawChevron("#dce6f0", "#05080b"), pixelRatio: SCALE },

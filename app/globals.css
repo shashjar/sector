@@ -1,17 +1,5 @@
 @import "tailwindcss";
 
-/*
- * Sector commits to a single visual world: a night cockpit.
- *
- * This is a choice, not an omission. Every EFB in the cockpit runs dark chrome
- * regardless of ambient light, because the map underneath changes brightness
- * dramatically — the default chart ground is near-black, a sectional is
- * paper-white, satellite imagery is bright. Chrome that followed the OS theme
- * would fight the basemap instead of framing it.
- *
- * Legibility across basemaps is the scrim layer's job in the renderer, not the
- * chrome palette's.
- */
 :root {
   /* Ground — near-black with a blue bias, the night-flight neutral */
   --bg: #070a0e;
@@ -31,9 +19,7 @@
   --accent-wash: #1d1708;
 
   /*
-   * Flight categories. Not decorative — these are the FAA's own ceiling and
-   * visibility bands, and pilots read the color before they read the number.
-   * Semantic, and deliberately separate from the accent.
+   * Flight categories.
    */
   --vfr: #3fb950;
   --mvfr: #58a6ff;
@@ -88,15 +74,10 @@ body {
   overscroll-behavior: none;
 }
 
-/*
- * Digits line up in columns throughout this app — altitudes, groundspeeds,
- * frequencies, headings, squawks. Tabular figures aren't a nicety here.
- */
 .tnum {
   font-variant-numeric: tabular-nums;
 }
 
-/* Uppercase micro-labels: the vernacular of instrument panels and flight strips */
 .label {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.66rem;

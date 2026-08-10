@@ -33,7 +33,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/** "300 at 20, gusting 27" — never the raw group. */
 function wind(observation: Observation): string {
   if (observation.windSpeedKt === null) return "—";
   if (observation.windSpeedKt < 1) return "calm";
@@ -46,12 +45,6 @@ function wind(observation: Observation): string {
   return `${direction} @ ${Math.round(observation.windSpeedKt)}${gust}`;
 }
 
-/**
- * The ceiling, or what is up there instead.
- *
- * "clear" is a real answer and a different one from "unknown" — a station that
- * reports no layers is telling you the sky is open, not staying silent.
- */
 function ceiling(observation: Observation): string {
   if (observation.ceilingFt !== null) {
     return `${observation.ceilingFt.toLocaleString()} ft`;
@@ -59,12 +52,6 @@ function ceiling(observation: Observation): string {
   return observation.clouds.length === 0 ? "clear" : "no ceiling";
 }
 
-/**
- * Wind against the runway, in the terms a pilot decides with.
- *
- * A crosswind above fifteen knots is beyond many light aircraft's demonstrated
- * limit, so it is called out rather than left to be inferred from two numbers.
- */
 function runwayAdvice(favored: RunwayWind): string {
   const crosswind = Math.round(favored.crosswindKt);
   if (crosswind < 3) return "straight down the runway";
@@ -119,7 +106,6 @@ function Conditions({
   name: string | null;
   favored: RunwayWind | null;
 }) {
-  // Minute resolution is all an observation age needs; METARs are hourly.
   const now = useNow(30_000);
   const ageMs = now === 0 ? 0 : now - observation.observedAt;
   const ageMin = Math.max(0, Math.round(ageMs / 60_000));

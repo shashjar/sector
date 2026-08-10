@@ -16,10 +16,6 @@ const POLL_INTERVAL_MS = 120_000;
 
 /**
  * Stations requested per update.
- *
- * A wide view can hold hundreds of reporting fields. The nearest few dozen are
- * what a pilot is actually reading, and the rest are dots whose colour nobody
- * is inspecting at that zoom.
  */
 const MAX_STATIONS = 80;
 
@@ -52,8 +48,7 @@ const EMPTY = new Map<string, Observation>();
  *
  * Station selection comes from the airport source rather than a separate query:
  * the airports are already loaded, already have ICAO codes, and MapLibre can be
- * asked which of them are in the current view. So "which weather do we need"
- * is answered by the same data that draws the dots.
+ * asked which of them are in the current view.
  */
 export function useWeather(mapRef: React.RefObject<MapRef | null>, ready: boolean) {
   const [byIcao, setByIcao] = useState<Map<string, Observation>>(EMPTY);
@@ -63,14 +58,9 @@ export function useWeather(mapRef: React.RefObject<MapRef | null>, ready: boolea
   const [focusedIdent, setFocusedIdent] = useState<string | null>(null);
   /**
    * ICAO to local identifier.
-   *
-   * The weather network keys on ICAO, but the airport features are promoted by
-   * `ident` — the FAA code for US fields. They match at most airports and not
-   * all of them, so colouring a dot means translating back rather than assuming.
    */
   const [identByIcao, setIdentByIcao] = useState<Map<string, string>>(new Map());
   const inFlight = useRef<AbortController | null>(null);
-  /** Whether any observation has ever arrived. Drives the cold-start retry. */
   const hasData = useRef(false);
 
 
@@ -81,8 +71,6 @@ export function useWeather(mapRef: React.RefObject<MapRef | null>, ready: boolea
     const centre = map.getCenter();
     const origin: [number, number] = [centre.lng, centre.lat];
 
-    // querySourceFeatures rather than queryRenderedFeatures: a station whose
-    // dot is currently decluttered away still has weather worth colouring it by.
     const features = map.querySourceFeatures(AIRPORT_SOURCE);
 
     const seen = new Set<string>();
@@ -139,9 +127,6 @@ export function useWeather(mapRef: React.RefObject<MapRef | null>, ready: boolea
       setIdentByIcao(new Map(nearest.map((c) => [c.icao, c.ident])));
       setStatus("ok");
 
-      // Focus follows the nearest station that actually reported. The closest
-      // airport often has no weather at all, and an empty bar is worse than one
-      // showing a field ten miles away.
       const reporting = nearest.find((candidate) => next.has(candidate.icao));
       setFocusedIcao(reporting?.icao ?? null);
       setFocusedName(reporting?.name ?? null);
@@ -163,12 +148,6 @@ export function useWeather(mapRef: React.RefObject<MapRef | null>, ready: boolea
 
     /**
      * Retry once the airport data has actually tiled.
-     *
-     * The stations to request come from querying the airport source, and that
-     * source is a megabyte fetched in parallel with everything else — so the
-     * first poll usually runs before there is anything to find. Without this,
-     * a cold start finds no stations and then waits out the full two-minute
-     * interval before trying again, which reads as the weather being broken.
      */
     const onSourceData = (event: maplibregl.MapSourceDataEvent) => {
       if (!event.isSourceLoaded || event.sourceId !== AIRPORT_SOURCE) return;
@@ -187,11 +166,6 @@ export function useWeather(mapRef: React.RefObject<MapRef | null>, ready: boolea
 
   /**
    * Push categories onto the airport features as feature state.
-   *
-   * Feature state rather than rebuilding the GeoJSON: the airport source is a
-   * megabyte of static geometry and weather changes hourly, so re-serialising
-   * it to recolour dots would be absurd. The source sets `promoteId: "ident"`,
-   * which is what makes a station's ICAO usable as a feature id here.
    */
   useEffect(() => {
     const map = mapRef.current?.getMap();
@@ -211,9 +185,6 @@ export function useWeather(mapRef: React.RefObject<MapRef | null>, ready: boolea
 
   /**
    * Which runway the wind favors at the focused field.
-   *
-   * The runway index loads once per session and is shared, so this is a map
-   * lookup after the first call rather than a fetch.
    */
   const [resolvedRunway, setResolvedRunway] = useState<{
     ident: string;
@@ -239,8 +210,6 @@ export function useWeather(mapRef: React.RefObject<MapRef | null>, ready: boolea
     };
   }, [focused, focusedIdent]);
 
-  // Tagged with the airport it was computed for, so a result that arrives after
-  // the view has moved on is ignored rather than shown against the wrong field.
   const focusedRunway =
     resolvedRunway && resolvedRunway.ident === focusedIdent
       ? resolvedRunway.wind

@@ -60,7 +60,7 @@ describe("ceiling", () => {
   });
 
   it("ignores few and scattered however low they sit", () => {
-    // A pilot can climb through scattered cloud; it is not a ceiling, and
+    // A pilot can climb through scattered clouds; it is not a ceiling, and
     // treating it as one would report an open field as IFR.
     expect(
       ceilingFrom([

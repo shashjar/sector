@@ -42,14 +42,7 @@ export interface CandidateSet {
   frequencies: { role: string; mhz: number }[];
 }
 
-/**
- * Aircraft beyond this range are dropped from the set.
- *
- * A tower controller talks to aircraft in the pattern and on the field, not to
- * an airliner passing overhead at thirty thousand feet. Including the whole
- * viewport would add dozens of callsigns that cannot be the answer, and every
- * wrong candidate is a chance to match the wrong one.
- */
+/** Aircraft beyond this range are dropped from the set. */
 const CALLSIGN_RADIUS_NM = 15;
 
 /** Above this, an aircraft is overflying rather than talking to the tower. */
@@ -79,7 +72,6 @@ export function buildCandidateSet({
         const distance = distanceNm.get(target.id);
         if (distance !== undefined && distance > CALLSIGN_RADIUS_NM) return false;
       }
-      // Aircraft on the ground are exactly who ground and tower are talking to.
       if (target.onGround) return true;
       return target.altitudeFt === null || target.altitudeFt <= CALLSIGN_CEILING_FT;
     })
@@ -107,11 +99,6 @@ export function runwayCandidates(
 
 /**
  * Render the set for the model.
- *
- * Both forms are given for every callsign — the written identifier it must
- * return, and the spoken forms it should match the transcript against. Asking
- * for one and showing the other is what lets the model answer with `UAL1334`
- * after hearing "united thirteen thirty four".
  */
 export function describeCandidates(set: CandidateSet): string {
   const lines: string[] = [];
@@ -153,18 +140,7 @@ export function describeCandidates(set: CandidateSet): string {
 }
 
 /**
- * The guard.
- *
- * A callsign the model returns is accepted only if it is one we offered.
- * Anything else — a plausible-looking invention, a misread that happens to
- * resemble a real registration, a hallucinated sentence from a clip that was
- * mostly silence — is rejected and the transmission renders as unmatched.
- *
- * Linking a controller's instruction to the wrong aircraft is worse than not
- * linking it at all: the whole point of the display is that the highlighted
- * target is the one being addressed. Matching is exact after normalisation,
- * deliberately — a fuzzy match here would reintroduce precisely the guessing
- * this layer exists to remove.
+ * The guard: a callsign the model returns is accepted only if it is one we offered.
  */
 export function validateCallsign(
   value: string | null | undefined,

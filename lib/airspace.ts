@@ -18,11 +18,6 @@ export interface RunwayEndInput {
   ident: string;
   lat: number | null;
   lon: number | null;
-  /**
-   * Degrees true, as published. Runway *numbers* are magnetic — runway 30 at
-   * KSQL has a true heading of 318 — so these two must never be conflated.
-   * Magnetic conversion happens once, at the display layer.
-   */
   headingTrue: number | null;
   elevationFt: number | null;
 }
@@ -36,16 +31,9 @@ export interface AirportProperties {
   size: AirportSize;
   elevationFt: number | null;
   municipality: string | null;
-  /** True when a TWR frequency is published. Drives Class D symbology and feed lookup. */
   hasTower: boolean;
   /**
    * Longest published runway, in feet.
-   *
-   * Read from the runway table's length column, which is populated far more
-   * often than threshold coordinates are — so this is known for many airports
-   * whose runways cannot be drawn. It carries the zoom-density expressions:
-   * a 2,000-foot grass strip should not compete with a 10,000-foot air carrier
-   * runway for space at low zoom.
    */
   longestRunwayFt: number | null;
   /** Number of runways whose geometry could be located. Often zero for small fields. */

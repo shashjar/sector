@@ -35,10 +35,6 @@ export interface TrafficState {
   status: TrafficStatus;
   /**
    * The raw targets behind the rendered features.
-   *
-   * Exposed because the grounding step needs to know who is actually in the
-   * air, not just where to draw them — the callsigns here are the candidate
-   * set a transcript gets matched against.
    */
   aircraft: Aircraft[];
   /** Dead-reckoned positions, ready to hand to a GeoJSON source. */
@@ -78,8 +74,7 @@ function dataBlock(aircraft: Aircraft): DataBlock {
       ? String(Math.round(aircraft.altitudeFt / 100)).padStart(3, "0")
       : "";
   const rate = aircraft.verticalRateFpm ?? 0;
-  // Below 100 fpm an aircraft is level for display purposes; ADS-B reports
-  // small nonzero rates constantly and an arrow that flickers is worse than none.
+  // Below 100 fpm an aircraft is level for display purposes
   const trend = rate > 100 ? "↑" : rate < -100 ? "↓" : "";
   const speed =
     aircraft.groundSpeedKt !== null ? String(Math.round(aircraft.groundSpeedKt)) : "";
@@ -88,12 +83,6 @@ function dataBlock(aircraft: Aircraft): DataBlock {
     return { primary: aircraft.callsign, trend: "", secondary: "" };
   }
 
-  /*
-   * The arrow is handed over separately so the layer can scale it on its own.
-   * It is the one glyph in the block that is read as a shape rather than as a
-   * value, and at label size it disappears among the digits beside it. The
-   * spaces around it therefore belong to the neighbouring pieces.
-   */
   return {
     primary: `${aircraft.callsign}\n${altitude}${altitude && trend ? " " : ""}`,
     trend,
@@ -111,8 +100,6 @@ function toFeatures(
   return {
     type: "FeatureCollection",
     features: aircraft.flatMap((target) => {
-      // Age is measured from when the receiver heard it, not when we asked, so
-      // a target already stale on arrival is never drawn.
       const age = target.positionAgeSec + elapsed;
       if (age > TARGET_STALE_AFTER_SEC) return [];
 
@@ -137,8 +124,6 @@ function toFeatures(
             track: target.trackDeg ?? 0,
             hasTrack: target.trackDeg !== null,
             onGround: target.onGround,
-            // Fades toward zero as a target goes unheard, so a feed dropping out
-            // is visible before the target vanishes outright.
             freshness:
               age <= TARGET_FADE_AFTER_SEC
                 ? 1
@@ -169,11 +154,6 @@ export function useTraffic(mapRef: React.RefObject<MapRef | null>, ready: boolea
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   /**
    * The clock the interpolation reads.
-   *
-   * Held in state rather than read during render: calling Date.now() while
-   * rendering makes the output depend on when React happens to re-render, which
-   * is exactly the impurity that produces targets jittering on unrelated state
-   * changes. Advancing it on a timer makes each frame a pure function of it.
    */
   const [now, setNow] = useState(0);
   const inFlight = useRef<AbortController | null>(null);
@@ -191,8 +171,6 @@ export function useTraffic(mapRef: React.RefObject<MapRef | null>, ready: boolea
     );
 
     if (radiusNm > MAX_QUERY_RADIUS_NM) {
-      // Deliberately not a silent empty result: an empty map at this zoom would
-      // read as empty airspace rather than as a query we declined to make.
       setStatus("too-wide");
       setAircraft([]);
       return;
@@ -220,8 +198,6 @@ export function useTraffic(mapRef: React.RefObject<MapRef | null>, ready: boolea
       setNow(Date.now());
       setStatus(payload.aircraft.length > 0 ? "ok" : "empty");
     } catch (error) {
-      // An abort is us superseding our own request, not a failure. Treating it
-      // as one would flash "unreachable" on every pan.
       if (error instanceof DOMException && error.name === "AbortError") return;
       setStatus("unreachable");
     }
