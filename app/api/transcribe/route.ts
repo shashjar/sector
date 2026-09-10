@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     );
   }
 
+  // TODO: unbounded buffer read
   const audio = await request.arrayBuffer();
 
   if (audio.byteLength === 0) {
