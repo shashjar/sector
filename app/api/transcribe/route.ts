@@ -47,20 +47,36 @@ export async function POST(request: Request) {
     );
   }
 
-  // TODO: unbounded buffer read
-  const audio = await request.arrayBuffer();
-
-  if (audio.byteLength === 0) {
+  if (!request.body) {
     return Response.json({ error: "empty audio" }, { status: 400 });
-  }
-  if (audio.byteLength > MAX_BYTES) {
-    return Response.json({ error: "audio too large" }, { status: 413 });
   }
 
   try {
+    const audio = new Uint8Array(MAX_BYTES);
+    let bytesRead = 0;
+    const reader = request.body.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value.byteLength > MAX_BYTES - bytesRead) {
+          await reader.cancel().catch(() => {});
+          return Response.json({ error: "audio too large" }, { status: 413 });
+        }
+        audio.set(value, bytesRead);
+        bytesRead += value.byteLength;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (bytesRead === 0) {
+      return Response.json({ error: "empty audio" }, { status: 400 });
+    }
+
     const result = await transcribe({
       model: MODEL,
-      audio: new Uint8Array(audio),
+      audio: audio.subarray(0, bytesRead),
       // One retry. A transmission is worth a second attempt and not a third:
       // by the time a third would land, several more have already arrived.
       maxRetries: 1,
