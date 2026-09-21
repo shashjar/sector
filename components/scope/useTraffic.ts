@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
 
 import { MAX_QUERY_RADIUS_NM, type Aircraft } from "@/lib/adsb";
+import { retryAfterMs } from "@/lib/trafficRetry";
 import {
   deadReckon,
   TARGET_FADE_AFTER_SEC,
@@ -12,7 +13,7 @@ import {
 } from "@/lib/aviation";
 
 /** How often to ask the feed for a new picture. */
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 5000;
 
 /**
  * How often dead-reckoned positions are recomputed.
@@ -29,6 +30,7 @@ export type TrafficStatus =
   | "ok"
   | "empty"
   | "too-wide"
+  | "rate-limited"
   | "unreachable";
 
 export interface TrafficState {
@@ -157,6 +159,8 @@ export function useTraffic(mapRef: React.RefObject<MapRef | null>, ready: boolea
    */
   const [now, setNow] = useState(0);
   const inFlight = useRef<AbortController | null>(null);
+  const nextPollAt = useRef(0);
+  const backoffMs = useRef(30_000);
 
   const poll = useCallback(async () => {
     const map = mapRef.current?.getMap();
@@ -171,12 +175,16 @@ export function useTraffic(mapRef: React.RefObject<MapRef | null>, ready: boolea
     );
 
     if (radiusNm > MAX_QUERY_RADIUS_NM) {
+      inFlight.current?.abort();
       setStatus("too-wide");
       setAircraft([]);
       return;
     }
 
-    inFlight.current?.abort();
+    // Map movement shares the polling budget. Aborting a browser request does
+    // not undo the upstream request already sent by the server.
+    if (document.hidden || inFlight.current || Date.now() < nextPollAt.current) return;
+    nextPollAt.current = Date.now() + POLL_INTERVAL_MS;
     const controller = new AbortController();
     inFlight.current = controller;
 
@@ -185,6 +193,13 @@ export function useTraffic(mapRef: React.RefObject<MapRef | null>, ready: boolea
         `/api/traffic?lat=${centre.lat.toFixed(5)}&lon=${centre.lng.toFixed(5)}&radius=${Math.ceil(radiusNm)}`,
         { signal: controller.signal },
       );
+      if (controller.signal.aborted) return;
+      if (response.status === 429) {
+        nextPollAt.current = Date.now() + retryAfterMs(response.headers.get("retry-after"), backoffMs.current);
+        backoffMs.current = Math.min(backoffMs.current * 2, 5 * 60_000);
+        setStatus("rate-limited");
+        return;
+      }
       if (!response.ok) {
         setStatus("unreachable");
         return;
@@ -193,6 +208,8 @@ export function useTraffic(mapRef: React.RefObject<MapRef | null>, ready: boolea
         aircraft: Aircraft[];
         fetchedAt: number;
       };
+      if (controller.signal.aborted) return;
+      backoffMs.current = 30_000;
       setAircraft(payload.aircraft);
       setFetchedAt(payload.fetchedAt);
       setNow(Date.now());
@@ -200,6 +217,8 @@ export function useTraffic(mapRef: React.RefObject<MapRef | null>, ready: boolea
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setStatus("unreachable");
+    } finally {
+      if (inFlight.current === controller) inFlight.current = null;
     }
   }, [mapRef]);
 
@@ -216,6 +235,7 @@ export function useTraffic(mapRef: React.RefObject<MapRef | null>, ready: boolea
       clearInterval(interval);
       map.off("moveend", poll);
       inFlight.current?.abort();
+      inFlight.current = null;
     };
   }, [mapRef, poll, ready]);
 

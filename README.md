@@ -24,6 +24,15 @@ General speech models mangle ATC audio, and they fail hardest on exactly the tok
 
 **Traffic** polls ADS-B for the viewport and dead-reckons positions between polls, so targets glide instead of teleporting.
 
+Traffic requests are spaced at least five seconds apart in each visible tab.
+The server shares identical in-flight requests, caches pictures for five seconds,
+and spaces upstream calls at least one second apart. Provider rate limits pause
+requests using `Retry-After`, or exponential backoff starting at 30 seconds when
+that header is absent. Cached pictures retain their original timestamps so old
+contacts fade out normally. The cache and cooldown are per server process;
+multiple production instances need a shared limiter/cache to enforce one quota
+across the deployment.
+
 **Weather** comes from NOAA already decoded — no METAR parser — and is shown against runway alignment, because "favors runway 30" beats `30011KT` for anyone not already fluent.
 
 ## Running it

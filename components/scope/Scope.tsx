@@ -235,6 +235,10 @@ function TrafficStatus({
       "Traffic feed unreachable",
       "Showing the last known picture. Retrying every few seconds.",
     ],
+    "rate-limited": [
+      "Traffic feed cooling down",
+      "The provider is limiting requests. Traffic will resume automatically; old contacts fade out while waiting.",
+    ],
   }[status];
 
   return (

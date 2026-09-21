@@ -1,4 +1,5 @@
 import { MAX_QUERY_RADIUS_NM, normalizeResponse } from "@/lib/adsb";
+import { retryAfterMs } from "@/lib/trafficRetry";
 
 /**
  * Live traffic for a point and radius.
@@ -6,6 +7,30 @@ import { MAX_QUERY_RADIUS_NM, normalizeResponse } from "@/lib/adsb";
 
 const UPSTREAM = "https://api.adsb.lol/v2/point";
 const TIMEOUT_MS = 8000;
+const CACHE_MS = 5000;
+const MIN_REQUEST_INTERVAL_MS = 1000;
+const INITIAL_BACKOFF_MS = 30_000;
+
+// Shared by requests in this server process, including different tabs. This
+// is not a distributed quota across serverless instances or deployments.
+const cache = new Map<string, { aircraft: ReturnType<typeof normalizeResponse>; fetchedAt: number }>();
+let pending: { url: string; response: Promise<Response> } | null = null;
+let nextRequestAt = 0;
+let cooldownUntil = 0;
+let backoffMs = INITIAL_BACKOFF_MS;
+
+function rateLimited(until: number) {
+  return Response.json(
+    { error: "traffic feed rate limited" },
+    {
+      status: 429,
+      headers: {
+        "retry-after": String(Math.max(1, Math.ceil((until - Date.now()) / 1000))),
+        "cache-control": "no-store",
+      },
+    },
+  );
+}
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
@@ -47,16 +72,51 @@ export async function GET(request: Request) {
 
   // The upstream takes whole nautical miles and rejects a radius below 1.
   const queryRadius = Math.max(1, Math.min(Math.ceil(radius), MAX_QUERY_RADIUS_NM));
+  const url = `${UPSTREAM}/${lat.toFixed(5)}/${lon.toFixed(5)}/${queryRadius}`;
+  const now = Date.now();
 
+  for (const [key, picture] of cache) {
+    if (now - picture.fetchedAt >= CACHE_MS) cache.delete(key);
+  }
+  const picture = cache.get(url);
+  if (picture) {
+    // Preserve the observation timestamp so cached positions still age out.
+    return Response.json(picture, { headers: { "cache-control": "no-store" } });
+  }
+  if (now < cooldownUntil) return rateLimited(cooldownUntil);
+  if (pending?.url === url) return (await pending.response).clone();
+  if (pending || now < nextRequestAt) return rateLimited(Math.max(nextRequestAt, now + 1000));
+
+  nextRequestAt = now + MIN_REQUEST_INTERVAL_MS;
+  const response = fetchTraffic(url);
+  pending = { url, response };
+  try {
+    return (await response).clone();
+  } finally {
+    pending = null;
+  }
+}
+
+async function fetchTraffic(url: string) {
   try {
     const response = await fetch(
-      `${UPSTREAM}/${lat.toFixed(5)}/${lon.toFixed(5)}/${queryRadius}`,
+      url,
       {
         signal: AbortSignal.timeout(TIMEOUT_MS),
-        headers: { accept: "application/json" },
+        headers: {
+          accept: "application/json",
+          "user-agent": "Sector/0.1",
+        },
         cache: "no-store",
       },
     );
+
+    if (response.status === 429) {
+      const delay = retryAfterMs(response.headers.get("retry-after"), backoffMs);
+      cooldownUntil = Date.now() + delay;
+      backoffMs = Math.min(backoffMs * 2, 5 * 60_000);
+      return rateLimited(cooldownUntil);
+    }
 
     if (!response.ok) {
       return Response.json(
@@ -66,8 +126,12 @@ export async function GET(request: Request) {
     }
 
     const aircraft = normalizeResponse(await response.json());
+    const picture = { aircraft, fetchedAt: Date.now() };
+    backoffMs = INITIAL_BACKOFF_MS;
+    if (cache.size >= 64) cache.delete(cache.keys().next().value!);
+    cache.set(url, picture);
     return Response.json(
-      { aircraft, fetchedAt: Date.now() },
+      picture,
       { headers: { "cache-control": "no-store" } },
     );
   } catch (error) {
